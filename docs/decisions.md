@@ -1,0 +1,30 @@
+# Decision log
+
+Mirror of the Decision log in [PROJECT_SPEC.md](PROJECT_SPEC.md). Newest first. Add a row here and in the spec before changing anything a decision covers.
+
+| ID | Date | Decision | Alternatives considered | Reason |
+| --- | --- | --- | --- | --- |
+| D-24 | 14 Nov 2026 | No combined (distributed) training across laptops | One distributed job over Wi-Fi or Ethernet | Gradient sync costs 11.9–43.6 min per epoch vs 10.4 min of compute on the 4060 alone |
+| D-23 | 14 Nov 2026 | Split the 21 runs across RTX 4060, 4050 and 3050 laptops; same commit, same micro-batch; FS-8 seed 0 as hardware control; cost metrics and test evaluation on the 4060 only | Single 4060 | All 3 seeds by Mon \~20:40 instead of 20 of 21 runs by Tue 05:30 |
+| D-22 | 14 Nov 2026 | Work split by file ownership; contracts frozen at M0; merges at fixed times (M0–M3) | Shared files; ad-hoc merges | Two people, four days: no time to resolve conflicts |
+| D-21 | 14 Nov 2026 | Partner works on synthetic data and aggregated results only; all real-data runs on Pratik's laptops | Share the dataset | Licence forbids sharing and requires individual registration |
+| D-20 | 14 Nov 2026 | XAI on 4 priority configs, 100 videos; sanity check on 20 videos | All 7 configs, 200 videos | Fits in about 45 minutes of GPU time |
+| D-19 | 14 Nov 2026 | Tier 0: EchoNet weights evaluated at all 7 settings without training | No safety net | A full frame curve for about 40 minutes of GPU time |
+| D-18 | 14 Nov 2026 | Fixed learning rate 1e-4, no sweep (supersedes the tuning part of D-05) | LR check on FS-32 | No time; one shared rate stays fair |
+| D-17 | 14 Nov 2026 | 10 epochs per run, best-validation checkpoint | 25 epochs with early stopping | One seed of all 7 configs fits in 14.8 h on the 4060 |
+| D-16 | 14 Nov 2026 | Seed 0 MUST; seeds 1 and 2 as GPU time allows (supersedes D-11's 3 seeds) | 3 seeds for every config | 4-day deadline |
+| D-15 | 14 Nov 2026 | Re-scope to the 18 Nov deadline; finish by Wed 12:00 | The original 6-week plan | Deadline given by the user |
+| D-14 | 14 Nov 2026 | Local Gradio demo, `share=False` | Public Hugging Face Space | Licence forbids redistribution |
+| D-13 | 14 Nov 2026 | Demo model chosen on validation M2 MAE among Pareto-optimal configs | Choose on test | Avoids test leakage |
+| D-12 | 14 Nov 2026 | XAI: occlusion and IG for frames, Grad-CAM for space only, scored by 4 numeric tests | Grad-CAM pictures only | Grad-CAM has T/8 time steps; numbers beat visual judgement |
+| D-11 | 14 Nov 2026 | Wilcoxon + Holm over 9 comparisons; bootstrap CIs (seed count now set by D-16) | Single run, no tests | Seed noise can exceed gaps between configs |
+| D-10 | 14 Nov 2026 | Primary endpoint = test MAE in M1 | M2 as primary | Isolates per-clip ability from clip count |
+| D-09 | 14 Nov 2026 | Zero-padding of short videos (EchoNet rule) plus unpadded-subset sensitivity check | Loop or repeat frames | Comparability with B0; the check shows the effect |
+| D-08 | 14 Nov 2026 | Memory-mapped uint8 frame cache, grayscale | Decode AVI each step | Reads only needed frames; keeps the GPU fed at T = 8 |
+| D-07 | 14 Nov 2026 | OmegaConf YAML + TensorBoard + `all_runs.csv` | Hydra; W&B | Simple, offline, one source for numbers |
+| D-06 | 14 Nov 2026 | bf16 autocast, micro-batch 8, accumulation 2, checkpointing at T = 64 if needed | fp16; smaller batches | Fits 8 GB; equal BatchNorm batch for all T |
+| D-05 | 14 Nov 2026 | AdamW + cosine decay (learning rate now set by D-18) | SGD as EchoNet | Converges in fewer epochs |
+| D-04 | 14 Nov 2026 | Two sampling regimes: fixed stride (p = 2) and fixed 64-frame window | Frame count only | Separates density from beat coverage |
+| D-03 | 14 Nov 2026 | All sweep runs start from Kinetics-400; EchoNet weights used only as baseline B0 and Tier 0 | Fine-tune from EchoNet weights | EchoNet weights were trained at T = 32 and would favour it |
+| D-02 | 14 Nov 2026 | R(2+1)D-18 backbone | Transformers; echo foundation models; EchoGNN | Proven on this dataset; fits 8 GB; keeps the study about frames |
+| D-01 | 14 Nov 2026 | Train on the local RTX 4060 under WSL2 (extended by D-23) | Colab, Kaggle | No session limits; consistent cost measurements; data stays local |

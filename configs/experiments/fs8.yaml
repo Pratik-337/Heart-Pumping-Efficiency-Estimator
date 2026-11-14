@@ -1,0 +1,5 @@
+# FS-8: fixed stride. Window 16 raw frames, about 0.32 s at 50 fps.
+config_id: fs8
+regime: FS
+T: 8
+period: 2

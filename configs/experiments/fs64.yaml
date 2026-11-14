@@ -1,0 +1,5 @@
+# FS-64: fixed stride. Window 128 raw frames, about 2.56 s at 50 fps.
+config_id: fs64
+regime: FS
+T: 64
+period: 2

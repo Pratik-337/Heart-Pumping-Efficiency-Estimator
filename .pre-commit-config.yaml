@@ -1,0 +1,19 @@
+# Uses the ruff pinned in uv.lock (no hook downloads). Install once per clone: uv run pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types_or: [python, pyi]
+      - id: no-licensed-or-large-files
+        name: block data, checkpoints, videos and machine paths
+        entry: "Never commit data, checkpoints, videos or configs/paths.yaml (see CLAUDE.md, Hard rules)"
+        language: fail
+        files: '(\.(npy|npz|pt|pth|ckpt|avi|mp4)$|^data/|^runs/|^results/xai/|^configs/paths\.yaml$)'

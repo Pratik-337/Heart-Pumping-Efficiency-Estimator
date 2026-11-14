@@ -1,0 +1,5 @@
+# FS-16: fixed stride. Window 32 raw frames, about 0.64 s at 50 fps.
+config_id: fs16
+regime: FS
+T: 16
+period: 2

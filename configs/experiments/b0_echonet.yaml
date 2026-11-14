@@ -1,0 +1,9 @@
+# B0: EchoNet-Dynamic's released 32-frame weights, evaluation only (Gate A and Tier 0).
+# Tier 0 evaluates these weights at every (T, period) in contracts.CONFIGS.
+config_id: b0
+regime: BOTH
+T: 32
+period: 2
+model:
+  init: echonet
+  weights_file: r2plus1d_18_32_2_pretrained.pt

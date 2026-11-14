@@ -1,0 +1,5 @@
+# FW-16: fixed 64-frame window. Window 64 raw frames, about 1.28 s at 50 fps.
+config_id: fw16
+regime: FW
+T: 16
+period: 4

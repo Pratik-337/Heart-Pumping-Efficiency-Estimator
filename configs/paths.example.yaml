@@ -1,0 +1,17 @@
+# Copy to configs/paths.yaml (git-ignored) and edit for this machine:
+#   cp configs/paths.example.yaml configs/paths.yaml
+# `~` is expanded; relative paths are resolved from the repo root.
+
+# --- Person A (real EchoNet data, RTX 4060 laptop and the two training laptops) ---
+raw_root: ~/data/echonet/raw/EchoNet-Dynamic   # FileList.csv, VolumeTracings.csv, Videos/ (read-only)
+processed_root: ~/data/echonet/processed       # videos/*.npy, index.parquet, tracings.parquet, stats.json
+weights_root: ~/data/echonet/weights           # r2plus1d_18_32_2_pretrained.pt (B0)
+runs_root: runs                                # runs/<config_id>/seed<k>/ (git-ignored)
+results_root: results                          # all_runs.csv, cost.csv, tables/, figures/ (committed)
+
+# --- Person B (synthetic data only): point EVERY root outside the repo, e.g. ---
+# raw_root: ~/synthetic/raw/EchoNet-Dynamic
+# processed_root: ~/synthetic/processed
+# weights_root: ~/synthetic/weights
+# runs_root: ~/synthetic/runs
+# results_root: ~/synthetic/results   # keeps fake numbers out of the committed results/ folder

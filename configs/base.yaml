@@ -1,0 +1,46 @@
+# Settings shared by every run. Frozen at tag `config-frozen` (Sun 15 Nov); after that, change
+# only with a new row in docs/decisions.md. Values and reasons: docs/PROJECT_SPEC.md, sections
+# "Frame-efficiency experiment design" and "Model and training design".
+# `???` = required; each experiments/<config_id>.yaml sets it.
+
+config_id: ???
+regime: ???        # FS | FW | BOTH (fs32 belongs to both regimes)
+T: ???             # frames fed to the model
+period: ???        # take every period-th raw frame; window W = T * period raw frames
+seed: 0            # seed 0 is the MUST run; seeds 1 and 2 if GPU time allows (D-16)
+
+model:
+  arch: r2plus1d_18
+  init: kinetics400               # kinetics400 for every sweep run (D-03); echonet for B0 only
+  weights_file: null              # file in weights_root, used when init = echonet
+  head_bias: train_mean_ef        # Linear(512, 1) bias starts at the training-set mean EF
+  activation_checkpointing: false # turned on for T = 64 only if micro-batch 8 does not fit (A4)
+
+data:
+  frame_size: 112
+  in_channels: 3                  # grayscale frame copied to 3 channels
+  short_video_padding: zeros      # EchoNet rule (D-09); unpadded subset reported as a check
+  augment:                        # training split only
+    random_start: true
+    pad_crop: 12                  # zero-pad 12 px, then random 112 x 112 crop
+    hflip: false                  # would put the LV on the wrong side of an A4C view
+
+train:
+  epochs: 10                      # D-17
+  warmup_epochs: 1
+  optimizer: adamw
+  lr: 1.0e-4                      # fixed for all runs, no sweep (D-18)
+  weight_decay: 0.01
+  schedule: cosine
+  micro_batch: 8                  # never lowered to make a config fit (D-06)
+  grad_accum: 2                   # effective batch 16
+  loss: mse
+  precision: bf16
+  tf32: true
+  compile: false                  # only if the A4 timing run shows >= 15% speed-up
+  clips_per_video: 1              # one random clip per training video per epoch
+  select_metric: val_mae_m1       # keep the epoch with the best validation MAE in M1
+
+eval:
+  modes: [M1, M2]
+  m2_overlap: 0.5                 # M2 clip starts every W / 2 frames

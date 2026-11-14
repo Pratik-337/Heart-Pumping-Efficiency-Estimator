@@ -1,0 +1,5 @@
+# FS-32 = FW-32: the shared anchor of both regimes. Window 64 raw frames, about 1.28 s at 50 fps.
+config_id: fs32
+regime: BOTH
+T: 32
+period: 2

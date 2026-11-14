@@ -1,0 +1,5 @@
+# FW-64: fixed 64-frame window. Window 64 raw frames, about 1.28 s at 50 fps.
+config_id: fw64
+regime: FW
+T: 64
+period: 1
