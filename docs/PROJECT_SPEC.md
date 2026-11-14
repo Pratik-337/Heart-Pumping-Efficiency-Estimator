@@ -6,12 +6,12 @@ Nov 14, 2026 · @Master Bruce
 
 This doc is the single source of truth (SSOT) for the Machine Learning semester project. If the code and this doc disagree, the doc wins until a Decision log entry changes it.
 
-**Version 2, 14 Nov evening: re-scoped for the 18 Nov deadline and a two-person team.** Training drops to 10 epochs with 1 guaranteed seed. A zero-training experiment (Tier 0) is added as a safety net. A 4-day plan now splits the work between Aarush (A) and the partner (B), with fixed interface contracts and a step-by-step merge guide. Changed sections: Assumptions, Experiment design, Model and training, Explainability, Compute budget, 4-day plan, Interface contracts, Git workflow, IEEE report plan, Claude Code rules, Risks, Decision log.
+**Version 2, 14 Nov evening: re-scoped for the 18 Nov deadline and a two-person team.** Training drops to 10 epochs with 1 guaranteed seed. A zero-training experiment (Tier 0) is added as a safety net. A 4-day plan now splits the work between Pratik (A) and the partner (B), with fixed interface contracts and a step-by-step merge guide. Changed sections: Assumptions, Experiment design, Model and training, Explainability, Compute budget, 4-day plan, Interface contracts, Git workflow, IEEE report plan, Claude Code rules, Risks, Decision log.
 
 - **Readers:** you (builder and presenter), the faculty reviewer, and Claude Code (implementer).
 - **For Claude Code:** export this doc as Markdown and commit it as `docs/PROJECT_SPEC.md`. The repo's `CLAUDE.md` (section "Claude Code operating rules") points to it.
 - **Requirement words:** MUST = required for submission; SHOULD = do unless time runs out; MAY = stretch goal.
-- **IDs:** days are Day 0–Day 4, tasks are A1–A12 (Aarush) and B1–B10 (partner), decisions are D-nn, configs are FS-/FW-\<frames>. Commits and issues reference these IDs.
+- **IDs:** days are Day 0–Day 4, tasks are A1–A12 (Pratik) and B1–B10 (partner), decisions are D-nn, configs are FS-/FW-\<frames>. Commits and issues reference these IDs.
 - **Changing the plan:** add a row to the Decision log first, then change the code. Never edit a result number by hand; every number in the report comes from `results/all_runs.csv`.
 
 ## Project summary and research questions
@@ -41,13 +41,13 @@ Worked example with the first row of the dataset's label file: EDV = 49.22 mL, E
 
 ## Assumptions and open inputs
 
-The plan now assumes 4 days to an 18 Nov deadline, two people, the dataset already on Aarush's laptop, an IEEE report, and an RTX 4060 Laptop GPU. Rows marked "given" come from you; the rest are assumptions with their effect stated.
+The plan now assumes 4 days to an 18 Nov deadline, two people, the dataset already on Pratik's laptop, an IEEE report, and an RTX 4060 Laptop GPU. Rows marked "given" come from you; the rest are assumptions with their effect stated.
 
 | Item | Known or assumed | Effect on the plan |
 | --- | --- | --- |
 | Deadline | 18 Nov 2026 (given). Assumed end of day; the plan finishes by Wed 12:00 to leave a buffer | About 48 GPU-hours available, Sun 10:00 to Tue 10:00 |
-| Team | 2 people (given). A = Aarush, who has the GPU laptop and the data; B = partner | Work split by file ownership so merges don't conflict |
-| Dataset | Downloaded from the Stanford AIMI portal by Aarush (given) | Data never leaves A's laptop; B builds against synthetic data |
+| Team | 2 people (given). A = Pratik, who has the GPU laptop and the data; B = partner | Work split by file ownership so merges don't conflict |
+| Dataset | Downloaded from the Stanford AIMI portal by Pratik (given) | Data never leaves A's laptop; B builds against synthetic data |
 | Report | IEEE format (given). Assumed IEEEtran conference template, two columns, about 6 pages | See IEEE report plan |
 | GPU | RTX 4060 **Laptop** GPU, 8 GB (assumed, because you said the merge happens on your laptop) | Runs about 1.30× slower than desktop figures. Two more laptops (RTX 4050, RTX 3050 4 GB, given) share the training runs; see Compute budget, Step 7 |
 | Partner's machine | Any laptop; no NVIDIA GPU needed; Windows (with WSL), macOS or Linux | B's code is tested on CPU with synthetic videos |
@@ -434,7 +434,7 @@ The stack is Python 3.12 + PyTorch/torchvision on WSL2, managed with uv, with Ca
 The repo separates importable library code (`src/echoef/`), runnable entry points (`scripts/`), configuration (`configs/`) and generated outputs (`runs/`, `results/`). Data and runs never enter Git.
 
 ```text
-heart-ef-estimator/
+Heart-Pumping-Efficiency-Estimator/
 ├── CLAUDE.md                     # Claude Code rules; points to docs/PROJECT_SPEC.md
 ├── README.md                     # setup, how to reproduce each table and figure
 ├── pyproject.toml                # dependencies, ruff and pytest settings
@@ -500,7 +500,7 @@ heart-ef-estimator/
 │   ├── test_sampling.py  test_tracings.py  test_dataset.py
 │   └── test_metrics.py   test_stats.py     test_xai_shapes.py
 ├── runs/                         # git-ignored: runs/<config>/seed<k>/
-│                                 #   config.yaml, meta.json, best.pt, last.pt,
+│                                 #   config.yaml, meta.json, best.pt, last.pt, log.csv,
 │                                 #   metrics.json, predictions_*.csv, tb/, DONE
 ├── results/                      # tables/, figures/, all_runs.csv committed; xai/ git-ignored
 ├── notebooks/                    # exploration only; never the source of a result
@@ -519,9 +519,9 @@ heart-ef-estimator/
 
 ## 4-day build plan and team split
 
-Aarush (A) owns the GPU laptop, the dataset and every script that touches them. The partner (B) owns metrics, statistics, figures, explainability, the demo and most of the report, built on synthetic data until merged. The halves meet through fixed interface contracts and three scheduled merges, and all final runs happen on A's laptop.
+Pratik (A) owns the GPU laptop, the dataset and every script that touches them. The partner (B) owns metrics, statistics, figures, explainability, the demo and most of the report, built on synthetic data until merged. The halves meet through fixed interface contracts and three scheduled merges, and all final runs happen on A's laptop.
 
-&#91;embedded content: 4-day plan · three GPU lanes, Aarush and partner · 4 gates, 4 merges\]
+&#91;embedded content: 4-day plan · three GPU lanes, Pratik and partner · 4 gates, 4 merges\]
 
 Three GPU lanes start on Sunday afternoon and the RTX 4060 finishes last, about Mon 20:40 under Plan B. Merges M1 and M2 bring B's code onto `main`; the overnight final run feeds M3 on Tuesday at 08:00.
 
@@ -550,9 +550,9 @@ Each task has an owner prefix (A or B), a time box and a "done when" check. Time
 
 #### Day 0 — Sat 14 Nov (tonight)
 
-**Aarush**
+**Pratik**
 
-1. **A1 Repo and environment (19:00–20:30).** In WSL, install uv and create a private GitHub repo `heart-ef-estimator`; add B as a collaborator. With Claude Code, create the skeleton from the folder structure: `pyproject.toml` with every library in the Tech stack, `uv.lock`, `CLAUDE.md`, `configs/paths.example.yaml`, and `src/echoef/contracts.py` copied from Interface contracts. Export this doc to `docs/PROJECT_SPEC.md`. Push to `main` (merge **M0**). Check `nvidia-smi`, `torch.cuda.is_available()` and `torch.cuda.is_bf16_supported()`. Download the B0 weights into `data/weights/`. *Done when:* B can clone and `uv sync` succeeds.
+1. **A1 Repo and environment (19:00–20:30).** In WSL, install uv and create a private GitHub repo `Pratik-337/Heart-Pumping-Efficiency-Estimator`; add B as a collaborator. With Claude Code, create the skeleton from the folder structure: `pyproject.toml` with every library in the Tech stack, `uv.lock`, `CLAUDE.md`, `configs/paths.example.yaml`, and `src/echoef/contracts.py` copied from Interface contracts. Export this doc to `docs/PROJECT_SPEC.md`. Push to `main` (merge **M0**). Check `nvidia-smi`, `torch.cuda.is_available()` and `torch.cuda.is_bf16_supported()`. Download the B0 weights into `data/weights/`. *Done when:* B can clone and `uv sync` succeeds.
 2. **A2 Data pipeline (20:30–01:00).** Move the dataset into `~/data/echonet/raw/EchoNet-Dynamic/` inside WSL. Build `verify_dataset.py`, `preprocess.py` (frame cache, `index.parquet`, `tracings.parquet`, ED/ES by polygon area, train-only `stats.json`) and `eda.py`. Start preprocessing before you sleep; it runs unattended. While it runs, prepare the RTX 4050 and RTX 3050 laptops: WSL2, NVIDIA driver, uv, clone the repo, uv sync, and record each GPU's exact name and memory from nvidia-smi. *Done when:* the cache and index exist and split counts are logged.
 
 **Partner**
@@ -562,7 +562,7 @@ Each task has an owner prefix (A or B), a time box and a "done when" check. Time
 
 #### Day 1 — Sun 15 Nov
 
-**Aarush**
+**Pratik**
 
 3. **A3 Dataset and sampling (08:00–10:00).** `sampling.py`, `transforms.py`, `tracings.py` and `dataset.py` exactly as the contracts specify, with unit tests. Save and inspect one batch image grid per config. Copy the processed folder (about 21.8 GB) to the other two laptops by USB drive or LAN.
 4. **A4 Model and probes (10:00–11:00).** `factory.py` (Kinetics model, B0 loader, checkpointing switch). Run `probe_memory.py` (largest micro-batch per T, plus 50 timed training steps per T) on all three laptops. The result picks Plan A or Plan B (Compute budget, Step 7); write it into `configs/assignment.yaml` and the measured epoch times into the Compute budget section.
@@ -581,7 +581,7 @@ Each task has an owner prefix (A or B), a time box and a "done when" check. Time
 
 #### Day 2 — Mon 16 Nov
 
-**Aarush**
+**Pratik**
 
 10. **A8 Monitor (07:00–09:00).** Under Plan B the RTX 4050 and RTX 3050 queues finished around 01:30. Check curves and validation predictions on each laptop, copy their run folders to the 4060, rerun aggregation, and confirm the 4060's 64-frame queue is still running.
 11. **A9 Report: Method and Experimental setup (09:00–17:00)** in Overleaf: model, sampling regimes table, training, inference modes, hardware, metrics, statistics. Answer B's contract questions.
@@ -596,7 +596,7 @@ Each task has an owner prefix (A or B), a time box and a "done when" check. Time
 
 #### Day 3 — Tue 17 Nov
 
-**Aarush**
+**Pratik**
 
 13. **A10 Check the overnight run (07:00–08:00).** Read the `final_run.sh` logs and rerun any failed step. Commit and push `all_runs.csv`, `cost.csv`, tables and figures (merge **M3**, 08:00).
 14. **A11 Demo and spare GPU time (08:00–12:00).** Choose the demo model on validation. **Gate D:** the app handles 6 inputs, each under 3 s. If time allows, run XAI on the other 3 configs (about 15 minutes).
@@ -672,7 +672,7 @@ def predictions_path(run: Path, split: str, mode: str) -> Path:
 | Index | `<processed_root>/index.parquet` | `INDEX_COLUMNS`; `ed_frame`/`es_frame` = −1 when missing |
 | Tracings | `<processed_root>/tracings.parquet` | `TRACINGS_COLUMNS`, copied from `VolumeTracings.csv` |
 | Normalisation | `<processed_root>/stats.json` | `{"mean": float, "std": float}`, training split only |
-| Run folder | `<runs_root>/<config_id>/seed<k>/` | `config.yaml`, `meta.json`, `best.pt`, `log.csv`, prediction CSVs, `DONE` |
+| Run folder | `<runs_root>/<config_id>/seed<k>/` | `config.yaml`, `meta.json`, `best.pt`, `last.pt`, `log.csv`, `metrics.json`, prediction CSVs, `tb/`, `DONE` |
 | Checkpoint | `best.pt` | dict with `state_dict`, `config` (dict incl. T, period, config\_id, seed), `epoch`, `val_mae` |
 | Training log | `log.csv` | epoch, train\_loss, val\_mae\_m1, lr, seconds |
 | Predictions | `predictions_<split>_<mode>.csv` | `PREDICTION_COLUMNS`; `padded` = 1 if any clip was zero-padded |
@@ -713,7 +713,7 @@ Every script reads `configs/paths.yaml`, so the same commands work on both lapto
 
 ## Git workflow and merge guide
 
-Aarush works on branch `a-dev`, the partner on `b-dev`, and both merge into `main` through pull requests at fixed times. Because every file has one owner, each merge should be conflict-free; a conflict is a signal that someone edited a file they do not own.
+Pratik works on branch `a-dev`, the partner on `b-dev`, and both merge into `main` through pull requests at fixed times. Because every file has one owner, each merge should be conflict-free; a conflict is a signal that someone edited a file they do not own.
 
 | Merge | When | What lands on `main` | Who merges |
 | --- | --- | --- | --- |
@@ -723,24 +723,24 @@ Aarush works on branch `a-dev`, the partner on `b-dev`, and both merge into `mai
 | M2 | Mon 21:00 | B6–B8: XAI, `run_xai.py`, demo app | A reviews and merges B's pull request |
 | M3 | Tue 08:00 | Final `all_runs.csv`, `cost.csv`, tables and figures | A pushes; B pulls |
 
-### One-time setup: Aarush (WSL Ubuntu, Saturday 19:00)
+### One-time setup: Pratik (WSL Ubuntu, Saturday 19:00)
 
 1. Install the tools and set your Git identity:
 
 ```bash
 sudo apt update && sudo apt install -y git tmux
 curl -LsSf https://astral.sh/uv/install.sh | sh
-git config --global user.name "Aarush Patil"
+git config --global user.name "Pratik-337"
 git config --global user.email "<email on your GitHub account>"
 ```
 
-2. On github.com: New repository → name `heart-ef-estimator` → Private → Create. Then Settings → Collaborators → Add people → your partner's username. Sign in from the terminal with the GitHub CLI (`gh auth login`) or a personal access token, so `git push` works.
+2. On github.com: New repository → name `Heart-Pumping-Efficiency-Estimator` → Private → Create. Then Settings → Collaborators → Add people → your partner's username. Sign in from the terminal with the GitHub CLI (`gh auth login`) or a personal access token, so `git push` works.
 3. Clone, build the skeleton with Claude Code (task A1), and push:
 
 ```bash
-mkdir -p ~/code && cd ~/code
-git clone https://github.com/<your-username>/heart-ef-estimator.git
-cd heart-ef-estimator
+mkdir -p ~/projects && cd ~/projects
+git clone https://github.com/Pratik-337/Heart-Pumping-Efficiency-Estimator.git
+cd Heart-Pumping-Efficiency-Estimator
 # ... Claude Code creates the skeleton (task A1) ...
 cp configs/paths.example.yaml configs/paths.yaml   # set raw_root etc. to ~/data/echonet/...
 uv sync
@@ -752,14 +752,14 @@ git switch -c a-dev && git push -u origin a-dev
 
 ### One-time setup: partner (Saturday, after M0)
 
-1. Install Git and uv. On Windows, use WSL Ubuntu and the same commands as Aarush's step 1; on macOS or Linux the uv install line is the same.
+1. Install Git and uv. On Windows, use WSL Ubuntu and the same commands as Pratik's step 1; on macOS or Linux the uv install line is the same.
 2. Accept the GitHub invitation (email, or github.com/notifications).
 3. Clone, configure and create your branch:
 
 ```bash
-mkdir -p ~/code && cd ~/code
-git clone https://github.com/<aarush-username>/heart-ef-estimator.git
-cd heart-ef-estimator
+mkdir -p ~/projects && cd ~/projects
+git clone https://github.com/Pratik-337/Heart-Pumping-Efficiency-Estimator.git
+cd Heart-Pumping-Efficiency-Estimator
 cp configs/paths.example.yaml configs/paths.yaml   # point every root at ~/synthetic
 uv sync
 uv run pytest -q
@@ -772,7 +772,7 @@ git switch -c b-dev && git push -u origin b-dev
 
 ```bash
 git switch main && git pull
-git switch b-dev            # Aarush: a-dev
+git switch b-dev            # Pratik: a-dev
 git merge main
 uv sync && uv run pytest -q
 ```
@@ -786,14 +786,14 @@ git push
 ```
 
 3. Before a merge point, all three checks must pass: `uv run ruff check .`, `uv run ruff format --check .`, `uv run pytest -q`. Then on GitHub: Pull requests → New → base `main`, compare `b-dev` → title "M1: metrics, statistics, figures" → Create.
-4. Aarush reviews the Files changed tab: it should list only partner-owned files. Merge with "Create a merge commit".
+4. Pratik reviews the Files changed tab: it should list only partner-owned files. Merge with "Create a merge commit".
 
-### Final integration on Aarush's RTX 4060 laptop (Monday 21:00, unattended overnight)
+### Final integration on Pratik's RTX 4060 laptop (Monday 21:00, unattended overnight)
 
 First copy each extra laptop's `runs/` folders onto the RTX 4060 (USB drive, or `rsync -a` over the LAN); folder names are unique per config and seed, so nothing is overwritten. Training runs inside `tmux` (start: `tmux new -s sweep`; detach: Ctrl+B then D; return: `tmux attach -t sweep`). When the 4060's queue has finished, run these steps; `scripts/final_run.sh` runs the same commands in order:
 
 ```bash
-cd ~/code/heart-ef-estimator
+cd ~/projects/Heart-Pumping-Efficiency-Estimator
 git switch main && git pull && uv sync && uv run pytest -q
 git tag models-frozen && git push --tags                       # Gate C
 uv run python scripts/evaluate.py --split test --confirm-test --all
@@ -810,14 +810,14 @@ Scripts take their folders from `configs/paths.yaml`, so no path flags are neede
 ### Rules that keep merges painless
 
 - **Edit only files you own.** Need a change in the other person's file? Message them and they make it.
-- **Only Aarush changes `pyproject.toml` and `uv.lock`.** Every library is added at M0; if the partner needs another, Aarush adds it.
-- **Never commit** data, `runs/`, `configs/paths.yaml`, videos, `.npy`, `.pt`, or any figure that shows echo frames. XAI panels with frames go from Aarush's laptop straight to Overleaf.
+- **Only Pratik changes `pyproject.toml` and `uv.lock`.** Every library is added at M0; if the partner needs another, Pratik adds it.
+- **Never commit** data, `runs/`, `configs/paths.yaml`, videos, `.npy`, `.pt`, or any figure that shows echo frames. XAI panels with frames go from Pratik's laptop straight to Overleaf.
 - **On a conflict, stop.** Run `git merge --abort` and message the file's owner instead of resolving it yourself.
-- **Never run a second GPU job while training runs** on Aarush's laptop; use `--device cpu` for smoke tests until its queue finishes (about Mon 20:40).
+- **Never run a second GPU job while training runs** on Pratik's laptop; use `--device cpu` for smoke tests until its queue finishes (about Mon 20:40).
 
 ## IEEE report plan
 
-The report is an IEEE conference paper of about 6 pages (IEEEtran template, two columns) written in a shared Overleaf project. The partner leads and owns the narrative; Aarush writes Method and Experimental setup and supplies every number.
+The report is an IEEE conference paper of about 6 pages (IEEEtran template, two columns) written in a shared Overleaf project. The partner leads and owns the narrative; Pratik writes Method and Experimental setup and supplies every number.
 
 | Section | Owner | Content | Source in this spec | Pages | Draft by |
 | --- | --- | --- | --- | --- | --- |
@@ -849,7 +849,7 @@ Total: 0.6 + 0.5 + 0.4 + 1.3 + 0.4 + 1.6 + 0.5 + 0.2 + 0.5 = 6.0 pages. Adjust o
 
 **Writing rules**
 
-- Every number in the text and tables is copied from `all_runs.csv`; the partner pastes it and Aarush checks it.
+- Every number in the text and tables is copied from `all_runs.csv`; the partner pastes it and Pratik checks it.
 - State the constraints plainly: 10 epochs, 1–3 seeds, single-centre data, not clinically validated.
 - Cite EchoNet's own frame sweep in Related work and position the contribution against it.
 - Figures are vector PDFs at one-column width (3.5 in) with fonts of at least 8 pt.
@@ -865,7 +865,7 @@ Claude Code works one task ID at a time, reads this spec first, and must never t
 - Read docs/PROJECT_SPEC.md before any task. It wins over code comments and over your own assumptions.
 - Decisions live in docs/decisions.md. Do not change a decided item without a new entry approved by the user.
 - Work on one task ID (e.g. A3 or B6) per session. Put the task ID in every commit message.
-- Ask which person you are working for (A = Aarush, B = partner). Edit only files that person owns (ownership table in the spec).
+- Ask which person you are working for (A = Pratik, B = partner). Edit only files that person owns (ownership table in the spec).
 - contracts.py, pyproject.toml, uv.lock and configs/base.yaml change only with both people's agreement.
 - Person B's machine has no real data: develop and test only on synthetic data from scripts/make_synthetic_data.py.
 
@@ -880,7 +880,7 @@ Claude Code works one task ID at a time, reads this spec first, and must never t
 ## How code is written
 - Library code in src/echoef/; scripts/ are thin CLI wrappers (argparse or OmegaConf CLI).
 - No hard-coded hyperparameters or paths: everything comes from configs/*.yaml.
-- Every run writes runs/<config>/seed<k>/{config.yaml, meta.json, metrics.json, predictions_*.csv, best.pt, last.pt, DONE}.
+- Every run writes runs/<config>/seed<k>/{config.yaml, meta.json, log.csv, metrics.json, predictions_*.csv, best.pt, last.pt, tb/, DONE}.
 - meta.json holds git commit, config hash, library versions, GPU name, seed, start/end time.
 - Type hints on public functions; docstrings state tensor shapes, e.g. (B, C, T, H, W).
 - pathlib for paths; logging, not print; no notebooks as a source of results.
@@ -942,7 +942,7 @@ The dataset may be used only for your own non-commercial research, cannot be sha
 - **Single centre.** All data comes from one hospital; EchoNet's own error rose from 4.1 to 6.0 MAE on another hospital's videos ([Nature paper](https://utstat.toronto.edu/reid/sta2101f/s41586-020-2145-8.pdf)).
 - **Label noise.** Reference EF comes from human tracings, and human inter-observer variation is 7.6–13.9% in the same paper. Very small MAE gaps are below the labels' own precision.
 - **Apical four-chamber view only.** The model cannot be trusted on other views.
-- **Tuning bias.** The learning rate is tuned on FS-32 and Kinetics weights were trained on 16-frame clips; both may slightly favour those lengths.
+- **Tuning bias.** One untuned learning rate (1e-4, D-18) is shared by every config and may suit some clip lengths better than others; Kinetics weights were trained on 16-frame clips, which may slightly favour that length.
 - **Frames, not seconds.** Windows are set in frames, and frame rate varies around 50 fps, so a 64-frame window is not exactly 1.28 s for every video.
 - **Explanations show influence, not mechanism.** High attribution means the model's output depends on that input, not that the region causes the heart's function.
 - **Uncertainty band is narrow by construction.** The 3-seed spread captures model variance only.
@@ -956,7 +956,7 @@ Twenty-four decisions are fixed as of 14 Nov 2026; D-15 to D-24 re-scope the pla
 | D-24 | 14 Nov 2026 | No combined (distributed) training across laptops | One distributed job over Wi-Fi or Ethernet | Gradient sync costs 11.9–43.6 min per epoch vs 10.4 min of compute on the 4060 alone |
 | D-23 | 14 Nov 2026 | Split the 21 runs across RTX 4060, 4050 and 3050 laptops; same commit, same micro-batch; FS-8 seed 0 as hardware control; cost metrics and test evaluation on the 4060 only | Single 4060 | All 3 seeds by Mon \~20:40 instead of 20 of 21 runs by Tue 05:30 |
 | D-22 | 14 Nov 2026 | Work split by file ownership; contracts frozen at M0; merges at fixed times (M0–M3) | Shared files; ad-hoc merges | Two people, four days: no time to resolve conflicts |
-| D-21 | 14 Nov 2026 | Partner works on synthetic data and aggregated results only; all real-data runs on Aarush's laptops | Share the dataset | Licence forbids sharing and requires individual registration |
+| D-21 | 14 Nov 2026 | Partner works on synthetic data and aggregated results only; all real-data runs on Pratik's laptops | Share the dataset | Licence forbids sharing and requires individual registration |
 | D-20 | 14 Nov 2026 | XAI on 4 priority configs, 100 videos; sanity check on 20 videos | All 7 configs, 200 videos | Fits in about 45 minutes of GPU time |
 | D-19 | 14 Nov 2026 | Tier 0: EchoNet weights evaluated at all 7 settings without training | No safety net | A full frame curve for about 40 minutes of GPU time |
 | D-18 | 14 Nov 2026 | Fixed learning rate 1e-4, no sweep (supersedes the tuning part of D-05) | LR check on FS-32 | No time; one shared rate stays fair |
