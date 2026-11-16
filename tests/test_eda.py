@@ -46,9 +46,10 @@ def test_split_summary():
     assert _row(s, split="TRAIN")["edes_gap_median"] == pytest.approx(20.0)
 
 
-def test_padding_share_counts_videos_shorter_than_window():
+def test_padding_share_counts_clips_that_read_past_the_end():
     p = padding_share(INDEX)
-    assert _row(p, config_id="fs8", split="TRAIN")["n_padded"] == 1  # 15 < 16
+    assert _row(p, config_id="fs8", split="TRAIN")["n_padded"] == 0  # 15 < 16, but reads 0-14
+    assert _row(p, config_id="fs16", split="TRAIN")["n_padded"] == 1  # reads up to frame 30
     fs64_test = _row(p, config_id="fs64", split="TEST")  # 64 < 128; uncached video excluded
     assert (fs64_test["n"], fs64_test["n_padded"]) == (1, 1)
     assert _row(p, config_id="fs64", split="ALL")["share_padded"] == pytest.approx(3 / 4)

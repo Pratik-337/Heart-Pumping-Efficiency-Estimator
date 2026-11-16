@@ -41,6 +41,15 @@ import numpy as np
 import pandas as pd
 
 from echoef.contracts import FRAME_SIZE, INDEX_COLUMNS, SPLITS, TRACINGS_COLUMNS
+from echoef.data.layout import (  # processed layout; re-exported for scripts and tests
+    CACHE_DIR,
+    INDEX_FILE,
+    META_FILE,
+    QC_FILE,
+    SCAN_FILE,
+    STATS_FILE,
+    TRACINGS_FILE,
+)
 from echoef.data.tracings import is_single_tracing, lv_polygon, polygon_area
 from echoef.utils.meta import git_commit, git_dirty, library_versions
 
@@ -62,15 +71,6 @@ FILELIST_COLUMNS = [
     "NumberOfFrames",
     "Split",
 ]
-
-# Processed layout (spec, "Interface contracts", "Files on disk").
-CACHE_DIR = "videos"
-INDEX_FILE = "index.parquet"
-TRACINGS_FILE = "tracings.parquet"
-STATS_FILE = "stats.json"
-QC_FILE = "qc_report.csv"
-SCAN_FILE = "video_scan.parquet"
-META_FILE = "preprocess_meta.json"
 
 QC_COLUMNS = ["FileName", "Split", "check", "detail"]
 EDES_COLUMNS = [

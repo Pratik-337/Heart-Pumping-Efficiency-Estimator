@@ -8,6 +8,7 @@ statistics use every FileList.csv row.
 import pandas as pd
 
 from echoef.contracts import CONFIGS, SPLITS
+from echoef.data.sampling import is_padded, m1_start
 
 ALL = "ALL"  # pseudo-split covering every row
 
@@ -58,17 +59,20 @@ def split_summary(index: pd.DataFrame, ef_band_edges: tuple[float, float]) -> pd
 
 
 def padding_share(index: pd.DataFrame) -> pd.DataFrame:
-    """Per config and split: share of cached videos shorter than the window W = T x period.
+    """Per config and split: share of cached videos whose clips are zero-padded (D-28).
 
-    Such videos are zero-padded (EchoNet's rule, D-09). Replaces the normal approximation in
-    the spec's "Short videos" table with exact counts.
+    A video is padded when its clip reads a frame at or past its end (``sampling.is_padded``).
+    That happens only when it is shorter than the window W = T x period, and then every clip
+    starts at 0, so training, M1 and M2 agree. A video up to ``period - 1`` frames shorter than
+    W is not padded: its last read frame is still inside it. Replaces the normal approximation
+    in the spec's "Short videos" table with exact counts.
     """
     rows = []
     for config_id, (regime, t, period) in CONFIGS.items():
         window = t * period
         for split, part in _by_split(index):
             frames = part.loc[part["n_frames"] > 0, "n_frames"]
-            n_padded = int((frames < window).sum())
+            n_padded = sum(is_padded(m1_start(n, t, period), t, period, n) for n in frames)
             rows.append(
                 {
                     "config_id": config_id,
