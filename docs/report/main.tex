@@ -1,0 +1,75 @@
+% Heart Pumping Efficiency Estimator -- IEEE conference paper (IEEEtran, two columns, ~6 pages).
+% Section plan and page budget: docs/PROJECT_SPEC.md, "IEEE report plan" (D-30: Pratik writes
+% every section). RULE: no result number is typed here. Every number comes from
+% results/all_runs.csv through a script that writes results/tables/*.tex and
+% results/numbers.tex (\newcommand macros); this file only \input's them.
+\documentclass[conference]{IEEEtran}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{../../results/figures/}}
+\IfFileExists{../../results/numbers.tex}{\input{../../results/numbers.tex}}{}
+
+\begin{document}
+
+\title{How Many Frames Does an Ejection-Fraction Model Need?\\
+A Cost-Measured, Explanation-Scored Frame Study on EchoNet-Dynamic}
+
+\author{\IEEEauthorblockN{Pratik}
+\IEEEauthorblockA{Machine Learning semester project}}
+
+\maketitle
+
+\begin{abstract}
+% <= 200 words: problem, approach, 3 headline numbers (macros), takeaway.
+\end{abstract}
+
+\begin{IEEEkeywords}
+echocardiography, ejection fraction, video networks, R(2+1)D, frame efficiency, explainability
+\end{IEEEkeywords}
+
+\section{Introduction}
+% Why EF matters; automated EF exists [ouyang2020nature]; the gap: a test-set, multi-seed,
+% cost-measured frame study with scored explanations; 3 contribution bullets.
+
+\section{Related Work}
+% EchoNet-Dynamic and its validation-loss sweep; EchoCoTr; EchoGNN; EchoPrime and PanEcho;
+% video XAI and sanity checks [adebayo2018sanity].
+
+\section{Dataset}
+% EchoNet-Dynamic facts; official split; preprocessing (luma grayscale D-25, ED/ES by area D-26,
+% untraced videos dropped D-27); padded share per window (results/eda/padding_share.csv, D-28).
+
+\section{Method}
+\subsection{Model}
+\subsection{Sampling regimes}
+% Table I: the 7 configurations (T, p, window, seconds).
+\subsection{Training}
+\subsection{Inference modes}
+\subsection{Tier 0: frame reduction without retraining}
+\subsection{Explainability}
+
+\section{Experimental Setup}
+% Hardware (RTX 4060 Laptop GPU), metrics, statistics (bootstrap, Wilcoxon + Holm), cost protocol.
+
+\section{Results}
+\subsection{Tier 0}
+\subsection{Trained frame sweep}
+% Fig. 2: \includegraphics[width=\columnwidth]{mae_vs_t.pdf}
+\subsection{Cost and Pareto frontier}
+% Fig. 3: pareto.pdf; Table II from results/tables
+\subsection{Multi-clip inference}
+\subsection{Explainability}
+% Table III from results/tables/xai_summary.csv; Fig. 4 (echo frames) added by hand.
+
+\section{Discussion and Limitations}
+% Density vs coverage; clinical scale of the gaps; single centre; 10 epochs, 1--2 seeds;
+% frames not seconds; influence not mechanism; narrow seed band.
+
+\section{Conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}
