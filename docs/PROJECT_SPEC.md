@@ -216,7 +216,7 @@ Every model is scored on the same accuracy, agreement and cost metrics by one sc
 | AUROC, EF < 50% | Prediction used as a score | The Nature paper's cardiomyopathy threshold ([Nature paper](https://utstat.toronto.edu/reid/sta2101f/s41586-020-2145-8.pdf)) |
 | AUROC, EF ≤ 40% | Prediction used as a score | Reduced-EF cut-off in the 2021 universal definition of heart failure ([PubMed](https://www.pubmed.gov/33605000/)) |
 | MAE by EF band | ≤ 40, 41–49, ≥ 50 | Low-EF patients are fewer, and errors there matter most |
-| Calibration slope | Regress y on ŷ | A slope below 1 means predictions are pulled toward the mean |
+| Calibration slope | Regress y on ŷ | A slope above 1 means predictions are pulled toward the mean (their spread is too narrow); below 1, they are too spread out |
 
 **Cost metrics (fixed protocol)**
 
