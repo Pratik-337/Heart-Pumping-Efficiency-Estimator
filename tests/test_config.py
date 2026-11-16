@@ -94,16 +94,18 @@ def test_unset_required_key_raises(tmp_path):
         config.load_config("half", configs_dir=tmp_path)
 
 
-def test_assignment_is_the_d29_queue():
+def test_assignment_is_the_d31_queue():
     queues = config.load_assignment()
-    assert set(queues) == {"rtx4060", "rtx4050", "rtx3050"}
-    assert queues["rtx4050"] == queues["rtx3050"] == []
-    q = queues["rtx4060"]
-    assert len(q) == 14 and q[:2] == [("fs8", 0), ("fs32", 0)]  # Gate B after the 2nd run
-    assert {c for c, s in q if s == 0} == set(CONFIGS)  # every seed 0 ...
-    assert all(s == 0 for _, s in q[:7])  # ... before any seed 1
-    assert {c for c, s in q if s == 1} == set(CONFIGS)
-    assert q[-2:] == [("fs64", 1), ("fw64", 1)]  # the long runs last
+    assert set(queues) == {"rtx4060", "rtx4050", "rtx3050"} and queues["rtx3050"] == []
+    q60, q50 = queues["rtx4060"], queues["rtx4050"]
+    assert q60[:2] == [("fs8", 0), ("fs32", 0)]  # Gate B after the 2nd run
+    assert sorted(q60 + q50) == sorted((c, s) for c in CONFIGS for s in (0, 1))
+    for q in (q60, q50):  # every seed 0 before any seed 1, per laptop
+        seeds = [s for _, s in q]
+        assert seeds == sorted(seeds)
+    for c in CONFIGS:  # both seeds of a config on one laptop
+        assert len({m for m, q in queues.items() for cc, _ in q if cc == c}) == 1
+    assert all(CONFIGS[c][1] <= 16 for c, _ in q50)  # the 4050 trains T <= 16 only
 
 
 @pytest.mark.parametrize(
