@@ -92,7 +92,9 @@ def main(argv: list[str] | None = None) -> None:
     for config_id in args.configs:
         model, cfg = load_checkpoint(run_dir(roots["runs_root"], config_id, 0), device)
         configure_backends(OmegaConf.create(cfg))
-        t, period, precision = int(cfg["T"]), int(cfg["period"]), str(cfg["train"]["precision"])
+        t, period = int(cfg["T"]), int(cfg["period"])
+        # bf16 as trained on the GPU; fp32 on the CPU, where bf16 autocast is emulated and slow
+        precision = str(cfg["train"]["precision"]) if device.type == "cuda" else "fp32"
         rows, examples, worst = [], {}, None
         for i, video in sample.iterrows():
             r, ex = explain_video(
