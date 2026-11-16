@@ -1,8 +1,9 @@
 % Heart Pumping Efficiency Estimator -- IEEE conference paper (IEEEtran, two columns, ~6 pages).
 % Section plan and page budget: docs/PROJECT_SPEC.md, "IEEE report plan" (D-30: Pratik writes
-% every section). RULE: no result number is typed here. Every number comes from
-% results/all_runs.csv through a script that writes results/tables/*.tex and
-% results/numbers.tex (\newcommand macros); this file only \input's them.
+% every section). RULE: no result number is typed here. Every number of ours comes from
+% results/*.csv through scripts/make_tables.py, which writes results/numbers.tex,
+% results/dataset.tex and results/tables/*.tex; this file only \input's them. Numbers quoted
+% from other papers carry their citation.
 \documentclass[conference]{IEEEtran}
 \usepackage{graphicx}
 \usepackage{booktabs}
@@ -10,6 +11,8 @@
 \usepackage[hidelinks]{hyperref}
 \graphicspath{{../../results/figures/}}
 \IfFileExists{../../results/numbers.tex}{\input{../../results/numbers.tex}}{}
+\IfFileExists{../../results/dataset.tex}{\input{../../results/dataset.tex}}{}
+\newcommand{\inputtable}[1]{\IfFileExists{../../results/tables/#1.tex}{\input{../../results/tables/#1.tex}}{[table #1 not generated yet]}}
 
 \begin{document}
 
@@ -22,7 +25,7 @@ A Cost-Measured, Explanation-Scored Frame Study on EchoNet-Dynamic}
 \maketitle
 
 \begin{abstract}
-% <= 200 words: problem, approach, 3 headline numbers (macros), takeaway.
+% <= 200 words: problem, approach, 3 headline numbers (macros), takeaway. Written last.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -30,42 +33,166 @@ echocardiography, ejection fraction, video networks, R(2+1)D, frame efficiency, 
 \end{IEEEkeywords}
 
 \section{Introduction}
-% Why EF matters; automated EF exists [ouyang2020nature]; the gap: a test-set, multi-seed,
-% cost-measured frame study with scored explanations; 3 contribution bullets.
+Left-ventricular ejection fraction (EF), the share of the end-diastolic volume that the left
+ventricle ejects in one beat, is the most used single number of cardiac function: it defines
+the reduced, mildly reduced and preserved classes of heart failure~\cite{bozkurt2021universal}.
+Measuring it by hand from echocardiography videos is slow and varies between readers; video
+networks now estimate it directly from apical four-chamber videos with errors close to that
+variation~\cite{ouyang2020nature}.
+
+Such models read short clips of a video, and the clip length sets both what the model can see
+of the heartbeat and what it costs to run. EchoNet-Dynamic tuned this choice by sweeping the clip
+length and sampling period, but reported only validation loss, for single runs, without
+runtime or memory~\cite{ouyang2020nature}. This paper asks the question again with test-set
+metrics, repeated seeds, measured cost and explanations that are scored rather than looked at.
+
+We train R(2+1)D-18~\cite{tran2018closer} with 8 to 64 frames per clip under two sampling
+regimes that separate how densely a clip samples the beat from how much of the beat it covers.
+Our contributions are:
+\begin{itemize}
+\item a controlled frame-efficiency study on EchoNet-Dynamic with bootstrap confidence intervals
+and Holm-corrected paired tests, and a zero-training baseline that feeds the released 32-frame
+model fewer or more frames;
+\item an accuracy--cost Pareto analysis with measured FLOPs, latency and memory on an 8\,GB
+consumer GPU, for single-clip and multi-clip inference;
+\item four numeric tests of frame and pixel attributions---alignment with the traced
+end-diastolic and end-systolic frames, concentration inside the traced ventricle, a deletion
+test and a weight-randomisation sanity check---and how they change with clip length.
+\end{itemize}
 
 \section{Related Work}
-% EchoNet-Dynamic and its validation-loss sweep; EchoCoTr; EchoGNN; EchoPrime and PanEcho;
-% video XAI and sanity checks [adebayo2018sanity].
+EchoNet-Dynamic~\cite{ouyang2020nature,ouyang2019ml4h} released \edaNAll{} annotated videos and an
+R(2+1)D model that, combined with segmentation-guided beat-by-beat averaging, reached a test MAE
+of 4.1 EF points; its Extended Data sweep of clip length (1--96 frames) and sampling period
+(1--8) is the starting point of this study, which adds test metrics, seeds and cost.
+Transformer models such as EchoCoTr~\cite{echocotr2022} report a test MAE of 3.95, a small gain
+for more memory and compute. Foundation models trained on millions of videos, EchoPrime and
+PanEcho~\cite{echoprime,panecho}, target whole multi-view studies rather than one view.
+EchoGNN~\cite{mokhtari2022echognn} is explainable by design, predicting EF through learned
+frame and video graphs. For post-hoc explanation we use Integrated
+Gradients~\cite{sundararajan2017axiomatic} and Grad-CAM~\cite{selvaraju2017gradcam}, and follow
+Adebayo et~al.~\cite{adebayo2018sanity} in checking that the maps depend on the trained weights.
 
 \section{Dataset}
-% EchoNet-Dynamic facts; official split; preprocessing (luma grayscale D-25, ED/ES by area D-26,
-% untraced videos dropped D-27); padded share per window (results/eda/padding_share.csv, D-28).
+EchoNet-Dynamic holds \edaNAll{} apical four-chamber videos of 112$\times$112 pixels,
+one per patient, with EF, end-diastolic and end-systolic volumes and expert tracings of the
+left ventricle at end-diastole (ED) and end-systole (ES)~\cite{ouyang2019ml4h}. We use the
+official split of \edaNTrain{} training, \edaNVal{} validation and \edaNTest{} test videos.
+Videos have \edaFramesminAll{} to \edaFramesmaxAll{} frames (median \edaFramesmedianAll{}) at
+a median of \edaFpsmedianAll{} frames per second; EF has mean \edaEfmeanAll{}\% (SD \edaEfsdAll{}), with
+\edaNefleFourZeroAll{} videos at EF $\le 40$\%, \edaNefFourOneFourNineAll{} at 41--49\% and
+\edaNefgeFiveZeroAll{} at $\ge 50$\%.
+
+Each video is decoded once and cached as memory-mapped 8-bit frames. The red, green and blue
+channels are not identical, so frames are converted with the standard luma weights. ED and ES are
+assigned by the area of the traced ventricle (the larger is ED) rather than by file order;
+\edaNhastraceAll{} videos have one regular tracing at each frame and so a defined ED and ES,
+which the explanation tests need. A few videos have no tracings; as in EchoNet's own loader they
+are left out of training and evaluation. Pixel mean and standard deviation for normalisation come
+from the training videos only. Videos shorter than a clip's window are padded with mean-grey
+frames, as EchoNet does; this affects \edaSharepaddedFsSixtyFour\% of videos at the longest
+window (128 frames) and at most \edaSharepaddedFsThirtyTwo\% at the others.
 
 \section{Method}
 \subsection{Model}
+All models are torchvision's R(2+1)D-18~\cite{tran2018closer,torchvision_r2plus1d} initialised
+from Kinetics-400 weights, with the 400-class layer replaced by one linear output whose bias
+starts at the mean training EF. Grey frames are copied to the three input channels. The network
+pools over time and space, so it accepts any clip length.
+
 \subsection{Sampling regimes}
-% Table I: the 7 configurations (T, p, window, seconds).
+A clip takes $T$ frames, one every $p$ raw frames, and so spans a window of $W = T p$ raw
+frames. The \emph{fixed-stride} regime (FS) keeps $p = 2$, so the window grows with $T$; the
+\emph{fixed-window} regime (FW) keeps $W = 64$ frames (about 1.28\,s, EchoNet's tuned setting)
+and samples it more or less densely (Table~\ref{tab:configs}). FS-32 belongs to both regimes. A
+window of $w$ seconds holds a whole beat only when the heart rate exceeds $60/w$ beats per
+minute: FS-8 (0.32\,s) almost never sees a full beat, whereas every FW clip sees about one. A
+drop in accuracy for FS-8 may therefore come from missing part of the beat rather than from
+having few frames; FW-8 tells the two apart.
+
+\begin{table}[t]
+\centering
+\caption{Configurations: frames per clip $T$, sampling period $p$, window $W$ in raw frames and
+in seconds at 50 frames per second.}
+\label{tab:configs}
+\inputtable{table_configs}
+\end{table}
+
 \subsection{Training}
+Every configuration uses the same recipe: mean squared error, AdamW (learning rate
+$10^{-4}$, weight decay 0.01), one warm-up epoch then cosine decay over 10 epochs, an
+effective batch of 16 (micro-batch 8, two accumulation steps, so BatchNorm sees the same batch
+size for every $T$), bf16 mixed precision with the output layer in FP32, and EchoNet's
+augmentation: a random clip start and a random 112-pixel crop of the frame zero-padded by 12
+pixels~\cite{ouyang2020nature}. Each epoch draws one clip per training video. The epoch with the
+lowest validation MAE is kept. At $T = 64$, micro-batch 8 fits in 8\,GB only with activation
+checkpointing, applied per residual block; it changes memory, not the computation. Each
+configuration is trained with two seeds.
+
 \subsection{Inference modes}
-\subsection{Tier 0: frame reduction without retraining}
+In \emph{M1} the model sees one clip centred in the video. In \emph{M2} clips start every $W/2$
+frames and their predictions are averaged, as in common multi-clip testing; the number of clips,
+and so the cost per video, depends on the window. M1 is the primary mode because it compares the
+configurations' per-clip ability without the confound of different clip counts.
+
+\subsection{Tier 0: frames without retraining}
+As a training-free baseline we evaluate EchoNet's released 32-frame model~\cite{ouyang2020nature}
+at all seven $(T, p)$ settings. It answers a deployment question---can a trained model simply be
+fed fewer frames?---and gives a complete frame curve independent of our training.
+
 \subsection{Explainability}
+For 100 test videos (35, 15 and 50 per EF class, drawn once with a fixed seed) each model sees a
+clip placed so that it contains both ED and ES; videos whose ED--ES gap exceeds the window are
+counted and skipped. \emph{Temporal occlusion} replaces one frame at a time by the interpolation
+of its neighbours and records the change in EF. \emph{Integrated
+Gradients}~\cite{sundararajan2017axiomatic} attributes the output to every pixel, from a mean-grey
+baseline (and a blurred-video baseline as a check). \emph{3D Grad-CAM}~\cite{selvaraju2017gradcam}
+on the last convolutional stage gives coarse spatial maps; it has only $T/8$ time steps and is
+not used for frames. Four tests score the maps: (i) the share of the two most important frames
+within one sampled frame of ED or ES, against a permutation-test chance level; (ii) the share
+of attribution inside the traced ventricle divided by the ventricle's share of the frame;
+(iii) the mean change in EF when deleting frames from most to least important, against random
+orders; (iv) the rank correlation between maps of the trained model and of models whose weights
+are re-initialised from the output back to the input~\cite{adebayo2018sanity}. Attributions show
+what moves the model's output, not what causes the heart's function.
 
 \section{Experimental Setup}
-% Hardware (RTX 4060 Laptop GPU), metrics, statistics (bootstrap, Wilcoxon + Holm), cost protocol.
+Training, inference and all cost measurements ran on an NVIDIA RTX 4060 Laptop GPU (8\,GB) under
+WSL2 with PyTorch 2.15, except that FW-8, FS-16 and FW-16 were trained on an RTX 4050 Laptop
+GPU (6\,GB) with identical code, and an FS-8 run repeated
+there measures the effect of the hardware. Model selection used validation data only; the test
+set was evaluated once, after all models were frozen.
+
+\emph{Metrics.} The primary endpoint is test MAE in M1. We also report RMSE, $R^2$,
+Bland--Altman bias and 95\% limits of agreement~\cite{bland1986statistical}, the area under the
+ROC curve for detecting EF $< 50$\% and EF $\le 40$\%~\cite{bozkurt2021universal}, MAE per EF
+class, and the calibration slope of reference on predicted EF.
+
+\emph{Statistics.} Confidence intervals are 95\% percentile bootstrap intervals over test videos
+(10{,}000 resamples). Nine pre-specified comparisons---neighbouring $T$ within each regime, and
+FS against FW at $T = 8, 16, 64$---use paired Wilcoxon signed-rank tests on per-video absolute
+errors averaged over seeds, with Holm correction~\cite{holm1979simple} at $\alpha = 0.05$; the
+effect size is the median paired difference with its bootstrap interval.
+
+\emph{Cost.} FLOPs per clip are counted with PyTorch's FLOP counter (one multiply-add = two
+FLOPs) and multiplied by the M2 clip count for the cost per video. Latency is the median of 50
+timed runs after 10 warm-up runs, for one video at a time in bf16, timed with CUDA events. Peak
+memory is measured for inference and for one training step; training time comes from the logs.
 
 \section{Results}
 \subsection{Tier 0}
 \subsection{Trained frame sweep}
 % Fig. 2: \includegraphics[width=\columnwidth]{mae_vs_t.pdf}
 \subsection{Cost and Pareto frontier}
-% Fig. 3: pareto.pdf; Table II from results/tables
+% Fig. 3: pareto.pdf; Table II: \inputtable{table_main}
 \subsection{Multi-clip inference}
 \subsection{Explainability}
-% Table III from results/tables/xai_summary.csv; Fig. 4 (echo frames) added by hand.
+% Table III: \inputtable{table_xai}; Fig. 4 (echo frames) added by hand.
 
 \section{Discussion and Limitations}
-% Density vs coverage; clinical scale of the gaps; single centre; 10 epochs, 1--2 seeds;
-% frames not seconds; influence not mechanism; narrow seed band.
+% Density vs coverage; clinical scale of the gaps (inter-observer variation 7.6--13.9% in
+% [ouyang2020nature]); single centre; 10 epochs and two seeds; frames, not seconds; influence,
+% not mechanism; the seed band captures model variance only.
 
 \section{Conclusion}
 

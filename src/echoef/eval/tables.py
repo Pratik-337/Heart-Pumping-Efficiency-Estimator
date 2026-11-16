@@ -152,6 +152,36 @@ def table_xai(summary: pd.DataFrame) -> str:
     )
 
 
+def eda_tex(eda_dir: Path) -> str:
+    """``\\newcommand`` lines for the dataset facts in ``results/eda/*.csv`` (A2 EDA)."""
+    lines = ["% Written by scripts/make_tables.py from results/eda/*.csv. Do not edit."]
+    split = pd.read_csv(Path(eda_dir) / "split_summary.csv").set_index("split")
+    cols = {
+        "n": 0,
+        "n_has_trace": 0,
+        "frames_median": 0,
+        "frames_min": 0,
+        "frames_max": 0,
+        "ef_mean": 1,
+        "ef_sd": 1,
+        "n_ef_le40": 0,
+        "n_ef_41_49": 0,
+        "n_ef_ge50": 0,
+        "edes_gap_median": 0,
+        "fps_median": 0,
+    }
+    for name, row in split.iterrows():
+        for col, digits in cols.items():
+            value = f"{row[col]:,.{digits}f}" if digits == 0 else f"{row[col]:.{digits}f}"
+            lines.append(f"\\newcommand{{\\{macro_name('eda', col, name)}}}{{{value}}}")
+    for csv, col in (("padding_share.csv", "share_padded"), ("edes_fit.csv", "share_skip")):
+        table = pd.read_csv(Path(eda_dir) / csv)
+        for row in table[table["split"] == "ALL"].itertuples(index=False):
+            pct = f"{100 * getattr(row, col):.1f}"
+            lines.append(f"\\newcommand{{\\{macro_name('eda', col, row.config_id)}}}{{{pct}}}")
+    return "\n".join(lines) + "\n"
+
+
 def write_tables(results_root: Path) -> list[Path]:
     """Write every table and the macros that its inputs allow; return the written paths."""
     results_root = Path(results_root)
@@ -159,6 +189,9 @@ def write_tables(results_root: Path) -> list[Path]:
     tables.mkdir(parents=True, exist_ok=True)
     written = [tables / "table_configs.tex"]
     written[0].write_text(table_configs())
+    if (results_root / "eda" / "split_summary.csv").exists():
+        (results_root / "dataset.tex").write_text(eda_tex(results_root / "eda"))
+        written.append(results_root / "dataset.tex")
     all_runs_path = results_root / "all_runs.csv"
     if all_runs_path.exists():
         all_runs = pd.read_csv(all_runs_path)
