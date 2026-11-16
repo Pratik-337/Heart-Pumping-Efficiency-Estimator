@@ -83,11 +83,11 @@ The Nature paper's text lists 1,277 validation and 1,288 test patients, while it
 **Preprocessing pipeline (task A2, Saturday night)**
 
 1. **Verify.** Every `FileName` has a video; every video decodes; the decoded frame count matches `NumberOfFrames`. Mismatches go to `data/processed/qc_report.csv`. *Reason:* silent decode failures corrupt training without raising errors.
-2. **Check channels.** On 200 random videos, compare the R, G and B channels. If they are identical, store one channel. *Reason:* echo B-mode is grayscale; one channel cuts storage by 3×.
+2. **Check channels.** Compare the R, G and B channels of every video and log the result. They are not strictly identical, so the cache stores OpenCV's luma conversion (D-25). *Reason:* echo B-mode is grayscale; one channel cuts storage by 3×.
 3. **Cache decoded frames.** Save each video as `uint8` array (frames, 112, 112) in `data/processed/videos/<FileName>.npy`, read later with NumPy memory-mapping. *Reason:* a memory-mapped read loads only the 8–64 frames a clip needs; AVI decoding must read from the start of the file.
-4. **Label ED and ES by area, not file order.** Build each traced LV polygon (EchoNet's method: X1,Y1 points then X2,Y2 points reversed) and compute its area. The larger-area frame is ED, the smaller is ES. *Reason:* EchoNet's loader infers ED/ES from row order, which is fragile.
+4. **Label ED and ES by area, not file order.** Build each traced LV polygon (EchoNet's method: skip each frame's first row, which is the long axis, then take the X1,Y1 points followed by the X2,Y2 points reversed) and compute its area. The larger-area frame is ED, the smaller is ES. Videos whose traced frames are not one regular tracing each get no ED/ES (D-26). *Reason:* EchoNet's loader infers ED/ES from row order, which is fragile.
 5. **Check labels.** Recompute EF from EDV and ESV; flag rows where it differs from stored EF by more than 1 point.
-6. **Normalisation statistics.** Compute pixel mean and SD on the training split only and save `stats.json`. *Reason:* using validation or test pixels would leak information.
+6. **Normalisation statistics.** Compute pixel mean and SD on the training split only (the videos that are trained on, D-27) and save `stats.json`. *Reason:* using validation or test pixels would leak information.
 7. **Index.** Write `data/processed/index.parquet` with FileName, EF, EDV, ESV, FPS, decoded frame count, Split, ED frame, ES frame, has\_trace.
 
 **Storage estimate.** One frame is 112 × 112 = 12,544 bytes. A 173-frame video is 173 × 12,544 = 2,170,112 bytes (2.17 MB). All 10,030 videos are 10,030 × 2.17 MB = 21.8 GB for the grayscale cache. RGB would be 3× that, 65.3 GB.
@@ -949,10 +949,13 @@ The dataset may be used only for your own non-commercial research, cannot be sha
 
 ## Decision log
 
-Twenty-four decisions are fixed as of 14 Nov 2026; D-15 to D-24 re-scope the plan for the 18 Nov deadline, two people and three laptops. New rows go at the top, and `docs/decisions.md` mirrors this table.
+Twenty-seven decisions are fixed as of 15 Nov 2026; D-15 to D-24 re-scope the plan for the 18 Nov deadline, two people and three laptops, and D-25 to D-27 record what A2 found in the raw data. New rows go at the top, and `docs/decisions.md` mirrors this table.
 
 | ID | Date | Decision | Alternatives considered | Reason |
 | --- | --- | --- | --- | --- |
+| D-27 | 15 Nov 2026 | Videos with no tracings are left out of training, evaluation and the training-set normalisation statistics, as EchoNet's loader does; they stay in `index.parquet` and `qc_report.csv` | Keep all 10,030 videos | 6 videos (5 train, 1 test) have no tracings, and FileList.csv also gives them wrong frame sizes; dropping them matches EchoNet's loader, so B0 and the sweep are scored on the same videos |
+| D-26 | 15 Nov 2026 | ED/ES frames and LV outlines only from regular tracings: each of the video's two traced frames must be one long axis followed by chords perpendicular to it. Otherwise `has_trace` = False, `ed_frame` = `es_frame` = −1 and `qc_report.csv` lists the video as `irregular_tracing`; the video stays in training and evaluation | Take the first traced frame as ED; pool all chords into one outline | 93 videos (66 train, 15 val, 12 test) have a frame traced several times with the rows interleaved; no outline built from them matches the EF labels. On all 9,931 regular videos the area rule agrees with the file order (first traced frame = ED) |
+| D-25 | 15 Nov 2026 | The frame cache stays grayscale (D-08), converted with OpenCV's luma rule (`cv2.COLOR_BGR2GRAY`: 0.299 R + 0.587 G + 0.114 B), although the raw R, G and B channels are not identical. Per-video channel differences are in `processed/video_scan.parquet`, a summary in `processed/preprocess_meta.json` | Store RGB; keep one channel (G) | Full scan by A2: only 155 of 10,030 videos have identical channels. Most differ slightly in about 3% of pixels (luma then moves pixels by about 0.03 grey levels on average), while 263 videos (2.6%) are colour-tinted, with over half their pixels differing; luma keeps the image structure in both cases. RGB would triple the cache (about 65 GB) and the read I/O, and per-channel statistics would break the `stats.json` contract |
 | D-24 | 14 Nov 2026 | No combined (distributed) training across laptops | One distributed job over Wi-Fi or Ethernet | Gradient sync costs 11.9–43.6 min per epoch vs 10.4 min of compute on the 4060 alone |
 | D-23 | 14 Nov 2026 | Split the 21 runs across RTX 4060, 4050 and 3050 laptops; same commit, same micro-batch; FS-8 seed 0 as hardware control; cost metrics and test evaluation on the 4060 only | Single 4060 | All 3 seeds by Mon \~20:40 instead of 20 of 21 runs by Tue 05:30 |
 | D-22 | 14 Nov 2026 | Work split by file ownership; contracts frozen at M0; merges at fixed times (M0–M3) | Shared files; ad-hoc merges | Two people, four days: no time to resolve conflicts |

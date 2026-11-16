@@ -1,5 +1,6 @@
 # --- Licensed data and large artefacts: never commit (EchoNet Research Use Agreement) ---
-data/
+# Leading slash: only the repo-root data/ folder, not the src/echoef/data/ package
+/data/
 runs/
 results/xai/
 *.npy
@@ -12,6 +13,7 @@ results/xai/
 configs/paths.yaml
 
 # --- Python and tooling ---
+*.log
 __pycache__/
 *.py[cod]
 .venv/

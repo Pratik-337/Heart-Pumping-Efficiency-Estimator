@@ -1,0 +1,8 @@
+# Settings for scripts/verify_dataset.py, scripts/preprocess.py and scripts/eda.py (task A2).
+# Steps and reasons: docs/PROJECT_SPEC.md, "Dataset: EchoNet-Dynamic", "Preprocessing pipeline".
+# Machine folders come from configs/paths.yaml. The grayscale rule is fixed by D-25.
+
+seed: 0                  # nothing in preprocessing is random; seeded anyway (CLAUDE.md)
+ef_tolerance: 1.0        # flag rows where (EDV - ESV) / EDV x 100 differs from EF by > 1 point
+workers: 12              # decoding processes; changes speed only, never the outputs
+ef_band_edges: [40, 50]  # EDA bands: EF <= 40, 40 < EF < 50, EF >= 50 (spec, "MAE by EF band")
