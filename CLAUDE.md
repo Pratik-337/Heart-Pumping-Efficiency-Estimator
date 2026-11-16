@@ -4,9 +4,9 @@
 - Read docs/PROJECT_SPEC.md before any task. It wins over code comments and over your own assumptions.
 - Decisions live in docs/decisions.md. Do not change a decided item without a new entry approved by the user.
 - Work on one task ID (e.g. A3 or B6) per session. Put the task ID in every commit message.
-- Ask which person you are working for (A = Pratik, B = partner). Edit only files that person owns (ownership table in the spec).
-- contracts.py, pyproject.toml, uv.lock and configs/base.yaml change only with both people's agreement.
-- Person B's machine has no real data: develop and test only on synthetic data from scripts/make_synthetic_data.py.
+- Since D-30 (16 Nov) Pratik works alone and does every task, A1–A12 and B1–B10; the ownership table in the spec now only maps modules to task IDs.
+- contracts.py, pyproject.toml, uv.lock and configs/base.yaml change only with the user's explicit agreement and a decision entry.
+- Unit tests build their own synthetic data and run without a GPU; B's code may also run on the real data on this laptop (D-30).
 
 ## Hard rules
 - Never modify, move or delete anything under data/raw/.
