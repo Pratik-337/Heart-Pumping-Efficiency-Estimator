@@ -78,6 +78,35 @@ def load_config(
     return cfg
 
 
+def load_assignment(path: Path | None = None) -> dict[str, list[tuple[str, int]]]:
+    """Queue of ``(config_id, seed)`` runs per laptop from ``configs/assignment.yaml`` (D-29).
+
+    Raises:
+        ValueError: an unknown config_id, a seed that is not a non-negative int, a malformed
+            entry, or a run listed twice (on one laptop or across laptops).
+    """
+    path = CONFIGS_DIR / "assignment.yaml" if path is None else Path(path)
+    raw = OmegaConf.to_container(OmegaConf.load(path)) or {}
+    queues: dict[str, list[tuple[str, int]]] = {}
+    seen: set[tuple[str, int]] = set()
+    for machine, runs in raw.items():
+        queue = []
+        for entry in runs or []:
+            if not (isinstance(entry, list) and len(entry) == 2):
+                raise ValueError(f"{path}: {machine}: entry {entry!r} is not [config_id, seed]")
+            config_id, seed = entry
+            if config_id not in CONFIGS:
+                raise ValueError(f"{path}: {machine}: unknown config_id {config_id!r}")
+            if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+                raise ValueError(f"{path}: {machine}: seed {seed!r} is not an int >= 0")
+            if (config_id, seed) in seen:
+                raise ValueError(f"{path}: run {config_id} seed {seed} is listed twice")
+            seen.add((config_id, seed))
+            queue.append((config_id, seed))
+        queues[str(machine)] = queue
+    return queues
+
+
 def _check_against_contracts(cfg: DictConfig) -> None:
     """A sweep config must match its (regime, T, period) row in contracts.CONFIGS."""
     config_id = cfg.config_id

@@ -179,7 +179,7 @@ Every sweep run fine-tunes torchvision's R(2+1)D-18 from Kinetics-400 weights wi
 | Optimiser | AdamW, weight decay 0.01, 1 warm-up epoch, cosine decay over 10 epochs; keep the epoch with the best validation MAE | Adaptive optimisers are less sensitive to one shared learning rate across 7 configurations. 10 epochs (EchoNet used 45) is what a 4-day deadline allows; absolute MAE will be higher than EchoNet's, but every config gets the same budget |
 | Learning rate | Fixed at 1e-4 for all runs, the value EchoNet also used (with SGD); no tuning sweep | No time for a sweep; one shared rate keeps the comparison fair. Limitation: it may be sub-optimal for every config, so absolute errors are conservative |
 | Batch | Micro-batch 8, gradient accumulation 2 = effective batch 16 (the Nature paper's batch size) | BatchNorm statistics depend on micro-batch size, so it stays 8 for every T |
-| Memory at T = 64 | Activation checkpointing on the 4 residual stages if micro-batch 8 does not fit | Trades extra compute for memory without changing the maths. Fallback: micro-batch 4 with frozen BatchNorm, logged as a deviation |
+| Memory at T = 64 | Activation checkpointing on each residual block of the 4 stages, because micro-batch 8 does not fit without it (measured in A4; per-stage checkpointing was not enough) | Trades extra compute for memory without changing the maths. Fallback: micro-batch 4 with frozen BatchNorm, logged as a deviation |
 | Precision | `torch.autocast` with bf16; TF32 on for remaining FP32 maths | The RTX 4060 (Ada) has bf16 tensor cores; bf16 needs no loss scaling, unlike fp16 |
 | Augmentation (train only) | Random clip start; 12-pixel zero padding then random 112×112 crop | EchoNet's augmentation ([Nature paper](https://utstat.toronto.edu/reid/sta2101f/s41586-020-2145-8.pdf)) simulates small probe shifts. No horizontal flip: it would put the LV on the wrong side of an apical four-chamber view |
 | Epoch | One random clip per training video | Same number of gradient updates for every T |
@@ -288,6 +288,8 @@ A local Gradio app takes an AVI or MP4 echo video and returns predicted EF with 
 
 ## Compute budget on the RTX 4060
 
+**Update 16 Nov (D-29):** the RTX 4050 and RTX 3050 are not available. Every run trains on the RTX 4060 in the order of `configs/assignment.yaml`, with the run times measured in Step 4b; the three-laptop plans in Step 7 and Step 8 are kept for the record only.
+
 Training is split across three laptops: the RTX 4060 runs every 64-frame model, and the RTX 4050 and RTX 3050 run the shorter clips. All 21 runs (7 configs × 3 seeds) finish by about Mon 20:40, or about Mon 10:50 if the 4050 can fit 64-frame training. A single 4060 would finish only 20 of 21 by Tue 05:30. Task A4 replaces these estimates with measured epoch times on each laptop on Sunday morning.
 
 **Local GPU vs Colab/Kaggle: use the local GPU.**
@@ -312,6 +314,20 @@ Training is split across three laptops: the RTX 4060 runs every 64-frame model, 
 | 16 | 81.04 | 1,814,891 + 104,380 = 1,919,271 | 313 s = 5.2 min | 6.9 min | 52 min |
 | 32 | 162.08 | 3,629,782 + 208,759 = 3,838,541 | 625 s = 10.4 min | 13.7 min | 104 min |
 | 64 | 324.16 | 7,259,563 + 417,518 = 7,677,081 | 1,250 s = 20.8 min | 27.4 min | 274 min (checkpointing assumed) |
+
+**Step 4b — measured on the RTX 4060 (task A4, 16 Nov).** `scripts/probe_memory.py` ran one config per T (the FW configs share their T, so their memory and compute) with micro-batch 8, bf16 and AdamW, then timed 50 training micro-steps and 50 validation batches on real data after 10 warm-up steps. PyTorch was capped at the VRAM free at start (NVIDIA GeForce RTX 4060 Laptop GPU, about 6.8 GB of 8 GB; the Windows display holds the rest). Raw numbers: `results/probe/probe_memory_rtx4060*.csv`.
+
+| T | Checkpointing | Peak VRAM, micro-batch 8 (first step) | Largest micro-batch | Training step, autotuning on / off | Epoch | Run, 10 epochs (Step 4 estimate) |
+| --- | --- | --- | --- | --- | --- | --- |
+| 8 | no | 1.5 GB (1.5 GB) | 48 | 99 / 327 ms | 1.6 min | 16 min (26 min) |
+| 16 | no | 2.5 GB (2.5 GB) | 24 | 199 / 381 ms | 3.3 min | 33 min (52 min) |
+| 32 | no | 4.3 GB (4.4 GB) | 12 | 392 / 429 ms | 6.4 min | 64 min (104 min) |
+| 64 | per block | 5.0 GB (5.9 GB) | 8 | 1,082 / 1,189 ms | 17.6 min | 176 min (274 min) |
+
+- **Checkpointing per residual block, not per stage.** At T = 64, micro-batch 8 did not fit without checkpointing, and checkpointing the 4 stages saved only about 10%: `layer1` runs at full T and 56 × 56 and holds most activation memory, so recomputing the whole stage at once needs nearly all of it again. Checkpointing each of the 8 residual blocks fits. A unit test shows outputs, gradients and BatchNorm statistics are identical with and without it.
+- **cuDNN autotuning on.** It is 1.1–3.3× faster; its extra workspace appears only while it tunes, in the first step, and stays under the cap at T = 64.
+- **`torch.compile` off.** On FS-32 it was 9.5% faster, below the 15% threshold.
+- **Times are faster than Step 4's estimate.** One seed of all 7 configs takes 514 min; with 10% for end-of-run M2 validation and checkpoint saves, 9.4 h (3.0 h for the 5 configs with T ≤ 32, 6.4 h for FS-64 and FW-64). GPU clock about 2.6 GHz, 79–82 °C during the probe.
 
 **Step 5 — one full seed.** Queue order, cheapest useful runs first: FS-8 26 + FS-32 104 + FS-16 52 + FW-8 26 + FW-16 52 + FS-64 274 + FW-64 274 = 808 min = 13.5 h. Add 10% for end-of-run validation in M2 and checkpoint saves: 13.5 × 1.1 = 14.8 h per seed.
 
@@ -949,10 +965,11 @@ The dataset may be used only for your own non-commercial research, cannot be sha
 
 ## Decision log
 
-Twenty-eight decisions are fixed as of 16 Nov 2026; D-15 to D-24 re-scope the plan for the 18 Nov deadline, two people and three laptops, D-25 to D-27 record what A2 found in the raw data, and D-28 defines a padded clip (A3). New rows go at the top, and `docs/decisions.md` mirrors this table.
+Twenty-nine decisions are fixed as of 16 Nov 2026; D-15 to D-24 re-scope the plan for the 18 Nov deadline, two people and three laptops, D-25 to D-27 record what A2 found in the raw data, D-28 defines a padded clip (A3), and D-29 moves all training to the RTX 4060 (A4). New rows go at the top, and `docs/decisions.md` mirrors this table.
 
 | ID | Date | Decision | Alternatives considered | Reason |
 | --- | --- | --- | --- | --- |
+| D-29 | 16 Nov 2026 | All training runs on the RTX 4060; the RTX 4050 and 3050 laptops are not available (supersedes D-23's three-laptop split). The queue in `configs/assignment.yaml`: seed 0 of FS-8, FS-32, FS-16, FW-8, FW-16, FS-64, FW-64; then seed 1 of FS-8, FS-32, FS-16, FW-8, FW-16; then seed 1 of FS-64 and FW-64. Runs not finished at the `models-frozen` tag are not used. No hardware-control run | The spec's fallback (seed 1 for the FS configs only); seed 0 only; wait for the other laptops | Run times measured in A4 (Compute budget, Step 4b) fit seed 0 of all 7 configs and seed 1 of all 7 by Tuesday morning; cutting the queue early still leaves complete seeds for the cheaper configs. With one GPU there is no hardware difference to control |
 | D-28 | 16 Nov 2026 | A clip is padded when it reads a frame at or past the video's end (`sampling.is_padded`); a video is padded for a config when its clips are. This rule sets the `padded` column of the prediction CSVs, the unpadded-subset check (D-09) and `results/eda/padding_share.csv` | Count every video shorter than the window W = T × p (EchoNet's padding condition) | A video up to p − 1 frames shorter than W has a strided clip that ends inside it, so it holds no zero frames; counting it would put unaffected videos in the padded group. The two rules differ for FS-32, FS-64, FW-8 and FW-16 by 3 to 50 videos |
 | D-27 | 15 Nov 2026 | Videos with no tracings are left out of training, evaluation and the training-set normalisation statistics, as EchoNet's loader does; they stay in `index.parquet` and `qc_report.csv` | Keep all 10,030 videos | 6 videos (5 train, 1 test) have no tracings, and FileList.csv also gives them wrong frame sizes; dropping them matches EchoNet's loader, so B0 and the sweep are scored on the same videos |
 | D-26 | 15 Nov 2026 | ED/ES frames and LV outlines only from regular tracings: each of the video's two traced frames must be one long axis followed by chords perpendicular to it. Otherwise `has_trace` = False, `ed_frame` = `es_frame` = −1 and `qc_report.csv` lists the video as `irregular_tracing`; the video stays in training and evaluation | Take the first traced frame as ED; pool all chords into one outline | 93 videos (66 train, 15 val, 12 test) have a frame traced several times with the rows interleaved; no outline built from them matches the EF labels. On all 9,931 regular videos the area rule agrees with the file order (first traced frame = ED) |

@@ -55,6 +55,8 @@ def test_every_experiment_merges_with_base(config_id):
     assert cfg.model.init == "kinetics400"
     assert cfg.train.micro_batch * cfg.train.grad_accum == 16
     assert cfg.train.epochs == 10
+    # A4 probe: micro-batch 8 fits the 8 GB GPU at T = 64 only with checkpointing
+    assert cfg.model.activation_checkpointing == (t == 64)
 
 
 def test_b0_uses_echonet_weights():
@@ -90,3 +92,27 @@ def test_unset_required_key_raises(tmp_path):
     (tmp_path / "experiments" / "half.yaml").write_text("config_id: fs8\nregime: FS\nT: 8\n")
     with pytest.raises(ValueError, match="period"):
         config.load_config("half", configs_dir=tmp_path)
+
+
+def test_assignment_is_the_d29_queue():
+    queues = config.load_assignment()
+    assert set(queues) == {"rtx4060", "rtx4050", "rtx3050"}
+    assert queues["rtx4050"] == queues["rtx3050"] == []
+    q = queues["rtx4060"]
+    assert len(q) == 14 and q[:2] == [("fs8", 0), ("fs32", 0)]  # Gate B after the 2nd run
+    assert {c for c, s in q if s == 0} == set(CONFIGS)  # every seed 0 ...
+    assert all(s == 0 for _, s in q[:7])  # ... before any seed 1
+    assert {c for c, s in q if s == 1} == set(CONFIGS)
+    assert q[-2:] == [("fs64", 1), ("fw64", 1)]  # the long runs last
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["a: [[fs8, 0], [fs8, 0]]", "a: [[fs8, 0]]\nb: [[fs8, 0]]", "a: [[fs99, 0]]",
+     "a: [[fs8, -1]]", "a: [[fs8, 0.5]]", "a: [[fs8]]"],
+)  # fmt: skip
+def test_bad_assignment_raises(tmp_path, text):
+    path = tmp_path / "assignment.yaml"
+    path.write_text(text)
+    with pytest.raises(ValueError):
+        config.load_assignment(path)

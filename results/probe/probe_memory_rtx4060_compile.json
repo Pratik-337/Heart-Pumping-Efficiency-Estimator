@@ -1,0 +1,58 @@
+{
+  "task": "A4",
+  "machine": "rtx4060",
+  "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "vram_total_mb": 8187.5,
+  "vram_cap_mb": 6840.0,
+  "git_commit": "9e052710ce1969fc5d4e2d61d5f1f68994886e20",
+  "git_dirty": false,
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "pyarrow": "26.0.1",
+    "opencv-python-headless": "5.0.0.93",
+    "omegaconf": "2.4.0",
+    "torch": "2.15.0",
+    "torchvision": "0.29.2",
+    "captum": "0.9.0",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1"
+  },
+  "args": {
+    "machine": "rtx4060",
+    "configs": [
+      "fs32"
+    ],
+    "paths": "None",
+    "steps": 50,
+    "warmup": 10,
+    "max_batch": 64,
+    "workers": 8,
+    "compile": true,
+    "no_cudnn_benchmark": false,
+    "tag": "compile"
+  },
+  "nvidia_smi_start": {
+    "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "clocks.sm": "2250",
+    "clocks.mem": "8001",
+    "temperature.gpu": "68",
+    "power.draw": "19.49",
+    "utilization.gpu": "5",
+    "memory.used": "765",
+    "memory.total": "8188"
+  },
+  "started": "2026-11-16T06:09:00+00:00",
+  "nvidia_smi_end": {
+    "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "clocks.sm": "2610",
+    "clocks.mem": "8001",
+    "temperature.gpu": "78",
+    "power.draw": "87.68",
+    "utilization.gpu": "100",
+    "memory.used": "811",
+    "memory.total": "8188"
+  },
+  "finished": "2026-11-16T06:10:49+00:00"
+}

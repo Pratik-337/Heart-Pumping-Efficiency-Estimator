@@ -3,3 +3,5 @@ config_id: fs64
 regime: FS
 T: 64
 period: 2
+model:
+  activation_checkpointing: true  # micro-batch 8 does not fit 8 GB at T = 64 without it (A4 probe)
