@@ -1,0 +1,59 @@
+{
+  "task": "A4",
+  "machine": "rtx4050",
+  "gpu_name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+  "vram_total_mb": 6140.5,
+  "vram_cap_mb": 4816.0,
+  "git_commit": "99cd8e91fb4c0b1a998cc4bfdccf940d3264b322",
+  "git_dirty": false,
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "pyarrow": "26.0.1",
+    "opencv-python-headless": "5.0.0.93",
+    "omegaconf": "2.4.0",
+    "torch": "2.15.0",
+    "torchvision": "0.29.2",
+    "captum": "0.9.0",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1"
+  },
+  "args": {
+    "machine": "rtx4050",
+    "configs": [
+      "fs8",
+      "fs16"
+    ],
+    "paths": "None",
+    "steps": 50,
+    "warmup": 10,
+    "max_batch": 64,
+    "workers": 8,
+    "compile": false,
+    "no_cudnn_benchmark": false,
+    "tag": ""
+  },
+  "nvidia_smi_start": {
+    "name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+    "clocks.sm": "2355",
+    "clocks.mem": "8201",
+    "temperature.gpu": "54",
+    "power.draw": "16.76",
+    "utilization.gpu": "4",
+    "memory.used": "763",
+    "memory.total": "6141"
+  },
+  "started": "2026-11-16T10:35:48+00:00",
+  "nvidia_smi_end": {
+    "name": "NVIDIA GeForce RTX 4050 Laptop GPU",
+    "clocks.sm": "2715",
+    "clocks.mem": "8201",
+    "temperature.gpu": "78",
+    "power.draw": "66.13",
+    "utilization.gpu": "88",
+    "memory.used": "601",
+    "memory.total": "6141"
+  },
+  "finished": "2026-11-16T10:37:26+00:00"
+}
