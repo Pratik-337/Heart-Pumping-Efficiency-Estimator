@@ -25,8 +25,9 @@ step "explainability on the 4 priority configs"
 uv run python scripts/run_xai.py --configs fs8 fw8 fs32 fs64 --n-videos 100 --device cuda \
     --split test --confirm-test
 
-step "aggregation and figures"
+step "aggregation, figures and report tables"
 uv run python scripts/aggregate_results.py
 uv run python scripts/make_figures.py
+uv run python scripts/make_tables.py
 
 step "final run finished"
