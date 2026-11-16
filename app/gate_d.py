@@ -1,11 +1,11 @@
 """Gate D (task A11): the app handles 6 inputs, each in under 3 s on the RTX 4060.
 
-    uv run python app/gate_d.py --runs runs/fs32/seed0 runs/fs32/seed1
+    uv run python app/gate_d.py [--runs runs/fs32/seed0 runs/fs32/seed1]
 
 Inputs: 5 EchoNet TEST videos from the local raw folder and 1 synthetic non-echo video (colour
 noise, 160 x 120). Each must return an EF or a clear warning; the time is the full request
 without the optional IG overlay. Shows test-set errors, so it needs the ``models-frozen`` tag.
-Run only when no training queue uses the GPU.
+Run only when no training queue uses the GPU. Default ``--runs``: the D-13 demo config.
 """
 
 import argparse
@@ -21,7 +21,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from inference import load_ensemble  # noqa: E402
+from inference import demo_runs, load_ensemble  # noqa: E402
 
 from app import local_examples, make_runner  # noqa: E402
 from echoef.config import load_paths  # noqa: E402
@@ -47,7 +47,7 @@ def synthetic_video(folder: Path) -> Path:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Gate D: 6 inputs, each under 3 s.")
-    parser.add_argument("--runs", nargs="+", type=Path, required=True)
+    parser.add_argument("--runs", nargs="+", type=Path, default=None, help="default: D-13 choice")
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--paths", type=Path, default=None)
     args = parser.parse_args(argv)
@@ -56,7 +56,9 @@ def main(argv: list[str] | None = None) -> None:
     roots = load_paths(args.paths)
     if args.device == "cuda":
         require_gpu_free(roots["runs_root"])
-    ens = load_ensemble(args.runs, args.device)
+    ens = load_ensemble(
+        args.runs or demo_runs(roots["results_root"], roots["runs_root"]), args.device
+    )
     run = make_runner(ens, load_stats(roots["processed_root"]), roots["processed_root"])
     with tempfile.TemporaryDirectory() as tmp:
         inputs = local_examples(roots["raw_root"], roots["processed_root"], 5)
@@ -67,7 +69,7 @@ def main(argv: list[str] | None = None) -> None:
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             t0 = time.perf_counter()
-            text, notes, _, _ = run(path, False)
+            text, notes, *_ = run(path, False)
             seconds = time.perf_counter() - t0
             answered = text.startswith("## EF") or "could not" in text
             synthetic = "synthetic" in Path(path).name
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> None:
                 "PASS" if passed else "FAIL",
                 text.splitlines()[0],
             )
-    log.info("Gate D: %s", "PASS" if ok else "FAIL")
+    log.info("Gate D (%s, seeds %s): %s", ens.config_id, ens.seeds, "PASS" if ok else "FAIL")
     raise SystemExit(0 if ok else 1)
 
 

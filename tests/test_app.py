@@ -98,8 +98,8 @@ def test_ui_builds_and_runner_handles_bad_input(runs, tmp_path):
     assert run(None, False)[0] == "Upload a video first."
     (tmp_path / "bad.mp4").write_bytes(b"\x00" * 100)
     assert "could not be decoded" in run(str(tmp_path / "bad.mp4"), False)[0]
-    text, _, fig, overlay = run(str(_avi(tmp_path / "v.avi", 30, 112, 112)), False)
-    assert text.startswith("## EF") and fig is not None and overlay is None
+    text, _, fig, strip, animation = run(str(_avi(tmp_path / "v.avi", 30, 112, 112)), False)
+    assert text.startswith("## EF") and fig is not None and strip is None and animation is None
     assert app_module.build_ui(run, []) is not None
 
 
@@ -108,3 +108,61 @@ def test_ig_overlay_strip(runs, monkeypatch):
     monkeypatch.setattr(inf, "integrated_gradients", lambda *a, **k: np.random.rand(8, 112, 112))
     strip = inf.ig_overlay(ens, np.zeros((40, 112, 112), np.uint8), STATS)
     assert strip.shape == (112, 8 * 112, 3) and strip.dtype == np.uint8
+
+
+def test_ig_strip_and_animation_share_one_computation(runs, monkeypatch, tmp_path):
+    import gradio as gr
+    from PIL import Image
+
+    import app as app_module
+
+    ens = inf.load_ensemble(runs[:1], "cpu")
+    calls = []
+
+    def fake_ig(*args, **kwargs):
+        calls.append(1)
+        return np.random.rand(8, 112, 112)
+
+    monkeypatch.setattr(inf, "integrated_gradients", fake_ig)
+    run = app_module.make_runner(ens, STATS, None, tmp_path)
+    _, _, _, strip, animation = run(str(_avi(tmp_path / "v.avi", 40, 112, 112)), True)
+    assert len(calls) == 1 and strip.shape == (112, 8 * 112, 3)
+    gif = Image.open(animation)
+    assert gif.n_frames == 8 and gif.size == (2 * 336, 336)  # every frame, input | overlay
+    assert gif.info["duration"] == 40  # period 2 at 50 fps
+    assert Path(animation).parent == tmp_path
+    shown = gr.Image(type="filepath").postprocess(animation)  # served as a file: stays animated
+    assert shown is not None and str(shown.path).endswith(".gif")
+
+
+def test_video_info_and_ed_es_marks(runs, tmp_path):
+    pd.DataFrame({"FileName": ["0XT", "0XV", "0XI"], "Split": ["TEST", "VAL", "TEST"],
+                  "EF": [41.5, 60.0, 30.0], "ed_frame": [10, 12, -1], "es_frame": [24, 30, -1],
+                  "has_trace": [True, True, False]}).to_parquet(tmp_path / INDEX_FILE)  # fmt: skip
+    assert inf.video_info("0XT.avi", tmp_path) == {"reference": 41.5, "ed": 10, "es": 24}
+    assert inf.video_info("0XV.avi", tmp_path) == {"reference": None, "ed": 12, "es": 30}
+    assert inf.video_info("0XI.avi", tmp_path) == {"reference": 30.0, "ed": None, "es": None}
+    assert inf.video_info("mine.mp4", tmp_path)["reference"] is None
+    ens = inf.load_ensemble(runs[:1], "cpu")
+    frames = np.zeros((40, 112, 112), np.uint8)  # M1 clip: frames 12..26 at period 2
+    fig = inf.importance_figure(ens, frames, STATS, ed=14, es=99)
+    labels = [t.get_text() for t in fig.axes[0].texts]
+    assert labels == ["ED"]  # ES lies outside the clip's window: not drawn
+
+
+def test_demo_runs_follow_the_validation_choice(tmp_path):
+    runs_root, results = tmp_path / "runs", tmp_path / "results"
+    for seed, done in ((0, True), (1, True), (2, False)):
+        (runs_root / "fw16" / f"seed{seed}").mkdir(parents=True)
+        if done:
+            (runs_root / "fw16" / f"seed{seed}" / "DONE").touch()
+    with pytest.raises(FileNotFoundError):
+        inf.demo_runs(results, runs_root)
+    (results / "tables").mkdir(parents=True)
+    pd.DataFrame({"config_id": ["fs8", "fw16"], "chosen": [False, True]}).to_csv(
+        results / "tables" / "demo_choice.csv", index=False
+    )
+    assert inf.demo_runs(results, runs_root) == [
+        runs_root / "fw16" / "seed0",
+        runs_root / "fw16" / "seed1",
+    ]

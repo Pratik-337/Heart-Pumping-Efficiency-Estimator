@@ -9,7 +9,8 @@ Sources under ``runs_root``: trained runs ``<config_id>/seed<k>/`` with ``DONE``
 - ``tables/wilcoxon_holm.csv``: the 9 pre-specified paired comparisons;
 - ``tables/seed_summary.csv``: mean and SD of MAE across seeds;
 - ``tables/unpadded.csv``: MAE on the videos whose clips are not zero-padded (D-09, D-28);
-- ``tables/hardware_control.csv``: hardware-control runs against the main GPU (D-31).
+- ``tables/hardware_control.csv``: hardware-control runs against the main GPU (D-31);
+- ``tables/demo_choice.csv``: the demo app's config, chosen on validation only (D-13).
 """
 
 import json
@@ -240,6 +241,46 @@ def hardware_control_table(runs_root: Path, split: str = "VAL") -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+DEMO_COLUMNS = ["config_id", "n_seeds", "split", "mode", "mae", "gflops_video_m2", "pareto",
+                "chosen"]  # fmt: skip
+
+
+def demo_choice(table: pd.DataFrame, split: str = "VAL", mode: str = "M2") -> pd.DataFrame:
+    """The demo config (D-13): lowest validation M2 MAE among the Pareto-optimal configs.
+
+    One candidate per trained config, as the app runs it: its seed ensemble when 2+ seeds
+    finished, else seed 0. A candidate is Pareto-optimal when no other has both fewer GFLOPs per
+    video (M2) and a lower MAE (``pareto`` is empty without ``cost.csv``). The most accurate
+    candidate is always Pareto-optimal, so the choice is the lowest validation M2 MAE and does
+    not wait for the cost benchmark. Test data is never read (D-13: no test leakage).
+    """
+    rows = table[(table["split"] == split) & (table["mode"] == mode)]
+    seeds = rows["seed"].astype(str)
+    out = []
+    for config_id in CONFIGS:
+        mine = rows[rows["config_id"] == config_id]
+        pick = mine[seeds[mine.index] == ENSEMBLE_SEED]
+        if pick.empty:
+            pick = mine[seeds[mine.index] == "0"]
+        if pick.empty:
+            continue
+        r = pick.iloc[0]
+        out.append({"config_id": config_id, "n_seeds": int(r.get("n_seeds", 1) or 1),
+                    "split": split, "mode": mode, "mae": float(r["mae"]),
+                    "gflops_video_m2": float(r.get("gflops_video_m2", np.nan))})  # fmt: skip
+    demo = pd.DataFrame(out, columns=DEMO_COLUMNS)
+    if demo.empty:
+        return demo
+    cost, mae = demo["gflops_video_m2"].to_numpy(), demo["mae"].to_numpy()
+    if np.isfinite(cost).all():
+        demo["pareto"] = [
+            not ((cost < c) & (mae <= m) | (cost <= c) & (mae < m)).any()
+            for c, m in zip(cost, mae, strict=True)
+        ]
+    demo["chosen"] = demo["mae"] == demo["mae"].min()
+    return demo
+
+
 def aggregate(
     runs_root: Path, results_root: Path, test_split: str = "TEST", mode: str = "M1"
 ) -> pd.DataFrame:
@@ -262,6 +303,9 @@ def aggregate(
     control = hardware_control_table(runs_root)
     if len(control):
         control.to_csv(tables / "hardware_control.csv", index=False)
+    demo = demo_choice(table)
+    if len(demo):
+        demo.to_csv(tables / "demo_choice.csv", index=False)
     split = test_split if any(k[2] == test_split for k in preds) else "VAL"
     trained = {k: v for k, v in preds.items() if not k[0].startswith(TIER0_PREFIX)}
     pairs = comparison_pairs(trained, split, mode)

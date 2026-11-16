@@ -97,3 +97,26 @@ def test_hardware_control_table(runs, tmp_path):
     assert (
         len(table[(table["config_id"] == "fs8") & (table["seed"] == 0)]) == 2
     )  # not counted twice
+
+
+def test_demo_choice_on_validation_only(runs, tmp_path):
+    """D-13: lowest validation M2 MAE (ensemble when 2+ seeds); TEST rows never matter."""
+    _write_run(runs, "fw16", 0, 1.0, splits=("TEST",))  # best on TEST, but has no VAL rows
+    results = tmp_path / "results"
+    ag.aggregate(runs, results)
+    demo = pd.read_csv(results / "tables" / "demo_choice.csv")
+    assert demo["config_id"].tolist() == ["fs8", "fs16"]  # fw16 has no validation rows
+    assert demo.set_index("config_id").loc["fs8", "n_seeds"] == 2  # the seed ensemble
+    assert demo.loc[demo["chosen"], "config_id"].tolist() == ["fs16"]  # noise 3 beats 6
+    assert demo["pareto"].isna().all()  # no cost.csv yet
+
+
+def test_demo_choice_pareto_with_cost():
+    table = pd.DataFrame({
+        "config_id": ["fs8", "fs16", "fs32", "fs64"], "seed": [0, 0, 0, 0],
+        "split": "VAL", "mode": "M2", "mae": [5.0, 4.5, 4.0, 4.2], "n_seeds": 1,
+        "gflops_video_m2": [800.0, 700.0, 650.0, 300.0],
+    })  # fmt: skip
+    demo = ag.demo_choice(table).set_index("config_id")
+    assert demo["pareto"].to_dict() == {"fs8": False, "fs16": False, "fs32": True, "fs64": True}
+    assert demo.index[demo["chosen"]].tolist() == ["fs32"]
