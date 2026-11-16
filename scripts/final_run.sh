@@ -28,7 +28,7 @@ uv run python scripts/run_xai.py --configs fs8 fw8 fs32 fs64 --n-videos 100 --de
 
 step "aggregation, figures and report tables (also picks the demo config on validation, D-13)"
 uv run python scripts/aggregate_results.py
-uv run python scripts/make_figures.py --png
+uv run python scripts/make_figures.py --png --ba-config fs32
 uv run python scripts/make_tables.py
 
 step "Gate D: the demo app (D-13 config, every seed) answers 6 inputs, each under 3 s"

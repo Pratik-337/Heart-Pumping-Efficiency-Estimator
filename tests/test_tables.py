@@ -273,3 +273,76 @@ def test_full_write_and_report_check(tmp_path):
     assert missing["macros"] == ["noSuchMacro"]
     assert missing["tables"] == ["table_xai"] and missing["figures"] == ["mae_vs_t"]
     assert check_report.check(tex, results, figures=False)["figures"] == []
+
+
+def test_report_claims_are_checked_against_the_numbers():
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "check_report.py"
+    spec = importlib.util.spec_from_file_location("check_report", script)
+    check_report = importlib.util.module_from_spec(spec)
+    sys.modules["check_report"] = check_report
+    spec.loader.exec_module(check_report)
+    values = {"wilSigA": "significant", "wilMedA": "$-$0.40", "pA": "$<$0.001",
+              "front": "FW-8 (M1) and FS-32 (M2)", "cfg": "FS-32"}  # fmt: skip
+    tex = "\n".join(
+        [
+            '% CLAIM: wilSigA = "significant"',  # holds
+            "% CLAIM: |wilMedA| < 0.5",  # holds: 0.40
+            "% CLAIM: wilMedA > 0",  # fails: negative
+            "% CLAIM: pA < 0.001",  # holds: below 0.001
+            '% CLAIM: front contains "FW-8"',  # holds
+            '% CLAIM: cfg != "FS-32"',  # fails
+            "% CLAIM: missingMacro > 1",  # fails: undefined
+            "text without a claim",
+        ]
+    )
+    failed = check_report.check_claims(tex, values)
+    assert [f.split(":")[0] for f in failed] == ["line 3", "line 6", "line 7"]
+    assert "undefined missingMacro" in failed[2]
+
+
+def test_report_structure_lint():
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "check_report.py"
+    spec = importlib.util.spec_from_file_location("check_report", script)
+    check_report = importlib.util.module_from_spec(spec)
+    sys.modules["check_report"] = check_report
+    spec.loader.exec_module(check_report)
+    good = "\\begin{figure}\\caption{a {b}}\\label{f}\\end{figure} see \\ref{f} \\cite{x, y}"
+    assert check_report.structure(good, "@article{x,\n}\n@misc{y,\n}") == []
+    bad = "\\begin{table}{ \\end{figure} \\ref{nope} \\cite{z} % } ignored"
+    problems = check_report.structure(bad, "@article{x,}")
+    assert any("does not close" in p for p in problems)
+    assert any("unclosed brace" in p for p in problems)
+    assert "\\ref{nope} has no \\label" in problems and "\\cite{z} not in refs.bib" in problems
+
+
+def test_report_bundle_for_overleaf(tmp_path):
+    import importlib.util
+    import sys
+    import zipfile
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "bundle_report.py"
+    spec = importlib.util.spec_from_file_location("bundle_report", script)
+    bundle_report = importlib.util.module_from_spec(spec)
+    sys.modules["bundle_report"] = bundle_report
+    spec.loader.exec_module(bundle_report)
+    results = tmp_path / "results"
+    for name in ("numbers.tex", "tables/table_main.tex", "figures/mae_vs_t.pdf",
+                 "xai/fs32/examples.pdf", "all_runs.csv"):  # fmt: skip
+        (results / name).parent.mkdir(parents=True, exist_ok=True)
+        (results / name).write_text("x")
+    names = bundle_report.bundle(results, tmp_path / "a.zip")
+    assert {"main.tex", "refs.bib", "results/numbers.tex", "results/tables/table_main.tex",
+            "results/figures/mae_vs_t.pdf"} == set(names)  # fmt: skip
+    assert "results/xai/fs32/examples.pdf" in bundle_report.bundle(
+        results, tmp_path / "b.zip", True
+    )
+    assert zipfile.ZipFile(tmp_path / "a.zip").namelist() == names

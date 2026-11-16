@@ -67,6 +67,11 @@ def _legend_above(ax, ncols: int, handles=None) -> None:
               borderaxespad=0.0, handlelength=1.4, columnspacing=1.0)  # fmt: skip
 
 
+def _label(config_id: str) -> str:
+    """``"fs32"`` -> ``"FS-32"``, as in the report's text and tables."""
+    return f"{config_id[:2].upper()}-{CONFIGS[config_id][1]}"
+
+
 def _signed(value: float) -> str:
     return f"{value:+.1f}".replace("-", "\u2212")  # typographic minus
 
@@ -115,6 +120,7 @@ def pareto(table: pd.DataFrame, split: str, mode_list=("M1", "M2"), seed=0) -> F
     """MAE against GFLOPs per video, M1 and M2, trained configs (spec Fig. 3).
 
     Needs the cost columns (``gflops_clip``, ``gflops_video_m2``) joined from ``cost.csv``.
+    Pareto-optimal points are numbered 1, 2, ... in order of cost.
     """
     fig, ax = _figure(2.6)
     markers = {"M1": "o", "M2": "s"}
@@ -129,15 +135,18 @@ def pareto(table: pd.DataFrame, split: str, mode_list=("M1", "M2"), seed=0) -> F
                 ax.scatter(gflops[pick], rows.loc[pick, "mae"], s=MARKER**2, marker=markers[mode],
                            color=REGIME_COLOR[regime], edgecolors=SURFACE, linewidths=1.0,
                            label=f"{regime}, {mode}", zorder=3)  # fmt: skip
-            points += list(zip(gflops, rows["mae"], rows["config_id"] + " " + mode, strict=True))
+            names = [f"{_label(c)} ({mode})" for c in rows["config_id"]]
+            points += list(zip(gflops, rows["mae"], names, strict=True))
         front = _pareto_front(points)
         if len(front) > 1:
             fx, fy, _ = zip(*front, strict=True)
             ax.plot(fx, fy, color=INK_2, linewidth=0.8, zorder=2, label="Pareto front")
-        for x, y, name in front:  # M1 labels above-right, M2 below-right: fewer collisions
-            dy, va = (3, "bottom") if name.endswith("M1") else (-3, "top")
-            ax.annotate(name, (x, y), xytext=(4, dy), textcoords="offset points", va=va,
-                        color=INK_2)  # fmt: skip
+        # Numbers, not names, mark the front (names collide where points cluster); the report
+        # caption lists the same front in the same cost order (tables.derived_tex, paretoFront).
+        for k, (x, y, _) in enumerate(front, 1):
+            ax.annotate(str(k), (x, y), xytext=(3, 3), textcoords="offset points", va="bottom",
+                        color=INK, fontweight="bold")  # fmt: skip
+        ax.margins(x=0.08, y=0.10)
         ax.set_xscale("log")
         ax.set_xlabel("GFLOPs per video")
         ax.set_ylabel(f"MAE, EF points ({split.lower()})")

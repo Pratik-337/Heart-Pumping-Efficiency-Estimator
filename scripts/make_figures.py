@@ -16,6 +16,7 @@ import pandas as pd
 from echoef.config import load_paths
 from echoef.contracts import CONFIGS, predictions_path, run_dir
 from echoef.eval.figures import bland_altman, mae_by_band, mae_vs_t, pareto
+from echoef.eval.tables import config_label
 from echoef.utils import seed_everything, setup_logging
 
 log = logging.getLogger("make_figures")
@@ -57,7 +58,7 @@ def main(argv: list[str] | None = None) -> None:
         path = predictions_path(run_dir(Path(runs_root), ba, 0), split, "M1")
         if path.exists():
             figures["bland_altman"] = bland_altman(
-                pd.read_csv(path), f"{ba.upper()}, {split.lower()}, M1"
+                pd.read_csv(path), f"{config_label(ba)}, {split.lower()}, M1, seed 0"
             )
     for name, fig in figures.items():
         fig.savefig(out / f"{name}.pdf")

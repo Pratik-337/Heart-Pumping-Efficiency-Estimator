@@ -8,11 +8,20 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{amsmath}
+\usepackage{adjustbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
 \usepackage[hidelinks]{hyperref}
-\graphicspath{{../../results/figures/}}
-\IfFileExists{../../results/numbers.tex}{\input{../../results/numbers.tex}}{}
-\IfFileExists{../../results/dataset.tex}{\input{../../results/dataset.tex}}{}
-\newcommand{\inputtable}[1]{\IfFileExists{../../results/tables/#1.tex}{\input{../../results/tables/#1.tex}}{[table #1 not generated yet]}}
+% Generated files live in results/ next to this file (Overleaf upload made by
+% scripts/bundle_report.py) or in ../../results/ (the repository).
+\IfFileExists{results/numbers.tex}{\def\resultsdir{results}}{\def\resultsdir{../../results}}
+\IfFileExists{\resultsdir/numbers.tex}{\input{\resultsdir/numbers.tex}}{}
+\IfFileExists{\resultsdir/dataset.tex}{\input{\resultsdir/dataset.tex}}{}
+% \res{name}: a generated number; a bold ?? until scripts/make_tables.py has written it.
+\newcommand{\res}[1]{\ifcsname #1\endcsname\csname #1\endcsname\else\textbf{??}\fi}
+\newcommand{\inputtable}[1]{\IfFileExists{\resultsdir/tables/#1.tex}{\input{\resultsdir/tables/#1.tex}}{[table \texttt{\detokenize{#1}} not generated yet]}}
+% \resfig{name}{width}: a figure of scripts/make_figures.py or run_xai.py (numbers only).
+\newcommand{\resfig}[2]{\IfFileExists{\resultsdir/figures/#1.pdf}{\includegraphics[width=#2]{\resultsdir/figures/#1.pdf}}{\fbox{\parbox{#2}{\centering\small figure \texttt{\detokenize{#1}} not generated yet}}}}
 
 \begin{document}
 
@@ -25,7 +34,23 @@ A Cost-Measured, Explanation-Scored Frame Study on EchoNet-Dynamic}
 \maketitle
 
 \begin{abstract}
-% <= 200 words: problem, approach, 3 headline numbers (macros), takeaway. Written last.
+Video networks estimate left-ventricular ejection fraction (EF) from echocardiograms, but the
+number of frames they need has so far been tuned on validation loss alone. We fine-tune
+R(2+1)D-18 on EchoNet-Dynamic with clips of 8 to 64 frames under two sampling regimes---a fixed
+stride, whose window grows with the clip, and a fixed 1.28\,s window sampled more or less
+densely---with two seeds per configuration, and measure test accuracy together with compute,
+latency and memory on an 8\,GB laptop GPU. The lowest single-clip test mean absolute error was
+\res{bestMaeTestMOne} EF points (\res{bestConfigTestMOne}). With 8 frames it was
+\res{maeFsEightTestMOne} when the clip spanned 0.32\,s and \res{maeFwEightTestMOne} when it
+spanned 1.28\,s:
+% CLAIM: wilSigFsEightFwEightTest = "significant"
+% CLAIM: wilDirFsEightFwEightTest = "larger"
+how much of the heartbeat a clip covers matters more than how many frames it holds. Feeding the
+released 32-frame EchoNet model other clip lengths without retraining raised its error to as much
+% CLAIM: tierZeroWorstMaeTestMOne > maeBzeroFsThirtyTwoTestMOne
+as \res{tierZeroWorstMaeTestMOne}. We also score frame and pixel attributions with four numeric
+tests---alignment with the traced end-diastolic and end-systolic frames, concentration inside the
+ventricle, a deletion test and a weight-randomisation check---instead of judging them by eye.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -94,6 +119,30 @@ frames, as EchoNet does; this affects \edaSharepaddedFsSixtyFour\% of videos at 
 window (128 frames) and at most \edaSharepaddedFsThirtyTwo\% at the others.
 
 \section{Method}
+\begin{figure}[t]
+\centering
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[font=\small, node distance=5mm and 4mm,
+  box/.style={draw, rounded corners=2pt, align=center, inner sep=3pt, minimum height=9mm},
+  arr/.style={-{Stealth[length=2mm]}, semithick}]
+\node[box] (video) {Echo video\\$F$ frames, 112$\times$112};
+\node[box, right=of video] (sampler) {Clip sampler\\FS: $p = 2$\\FW: $T p = 64$};
+\node[box, right=of sampler] (net) {R(2+1)D-18\\$T$ frames};
+\node[box, right=of net] (ef) {EF\\M1: one clip\\M2: clip mean};
+\node[box, below=of net] (xai) {Occlusion, Integrated\\Gradients, 3D Grad-CAM};
+\node[box, left=of xai] (tests) {ED/ES hit rate, LV ratio,\\deletion, randomisation};
+\draw[arr] (video) -- (sampler);
+\draw[arr] (sampler) -- (net);
+\draw[arr] (net) -- (ef);
+\draw[arr] (net) -- (xai);
+\draw[arr] (xai) -- (tests);
+\end{tikzpicture}}
+\caption{Pipeline. A sampler takes $T$ frames every $p$ raw frames (fixed stride, FS, or a fixed
+64-frame window, FW); R(2+1)D-18 regresses EF from one clip (M1) or the mean over clips (M2).
+Attributions of the trained models are scored by four numeric tests.}
+\label{fig:pipeline}
+\end{figure}
+
 \subsection{Model}
 All models are torchvision's R(2+1)D-18~\cite{tran2018closer,torchvision_r2plus1d} initialised
 from Kinetics-400 weights, with the 400-class layer replaced by one linear output whose bias
@@ -158,10 +207,14 @@ what moves the model's output, not what causes the heart's function.
 
 \section{Experimental Setup}
 Training, inference and all cost measurements ran on an NVIDIA RTX 4060 Laptop GPU (8\,GB) under
-WSL2 with PyTorch 2.15, except that FW-8, FS-16 and FW-16 were trained on an RTX 4050 Laptop
-GPU (6\,GB) with identical code, and an FS-8 run repeated
-there measures the effect of the hardware. Model selection used validation data only; the test
-set was evaluated once, after all models were frozen.
+WSL2 with PyTorch 2.15, except that both seeds of FW-8, FS-16 and FW-16 were trained on an RTX
+4050 Laptop GPU (6\,GB) from the same commit. An FS-8 run repeated on the RTX 4050 measures the
+effect of the hardware: its validation MAE differed from the RTX 4060 run by
+\res{hwGapAbsFsEightValMOne} EF points, against \res{hwSeedGapAbsFsEightValMOne} between the two
+% CLAIM: hwGapAbsFsEightValMOne <= hwSeedGapAbsFsEightValMOne
+RTX 4060 seeds, so the GPU effect is within seed noise. Model selection (best epoch, demo model)
+used validation data only; the test set was evaluated once, after all models were frozen, in a
+single scripted run that also produced every table and figure.
 
 \emph{Metrics.} The primary endpoint is test MAE in M1. We also report RMSE, $R^2$,
 Bland--Altman bias and 95\% limits of agreement~\cite{bland1986statistical}, the area under the
@@ -182,21 +235,274 @@ from the RTX 4060 training logs; for the three configurations trained on the RTX
 RTX 4060's measured step time scaled to one epoch, so every cost figure refers to one GPU.
 
 \section{Results}
-\subsection{Tier 0}
+\begin{table*}[t]
+\centering
+\caption{Test accuracy in M1 (one clip per video). MAE with 95\% bootstrap CI, RMSE, $R^2$,
+Bland--Altman bias with limits of agreement and AUROC are for seed 0; ``Seeds'' is the mean
+$\pm$ SD of the MAE over both seeds. MAE M2 averages clips over the video; Tier 0 is the released
+32-frame EchoNet model fed the same clips without retraining. MAE, RMSE and bias in EF points.}
+\label{tab:main}
+\footnotesize
+\begin{adjustbox}{max width=\textwidth}
+\inputtable{table_main}
+\end{adjustbox}
+\end{table*}
+
+\subsection{Tier 0: frames without retraining}
+At its own setting (32 frames, period 2) the released EchoNet model reached a test MAE of
+\res{maeBzeroFsThirtyTwoTestMOne} on one clip and \res{maeBzeroFsThirtyTwoTestMTwo} on the clip
+average. Fed other clips without retraining, its M1 MAE ranged from
+\res{tierZeroBestMaeTestMOne} (\res{tierZeroBestConfigTestMOne}) to
+\res{tierZeroWorstMaeTestMOne} (\res{tierZeroWorstConfigTestMOne}); at 8 frames it was
+\res{maeBzeroFsEightTestMOne} under the fixed stride and \res{maeBzeroFwEightTestMOne} under the
+fixed window (Table~\ref{tab:main}, last column; hollow markers in Fig.~\ref{fig:mae}).
+% CLAIM: maeBzeroFsEightTestMOne > maeBzeroFsThirtyTwoTestMOne
+% CLAIM: maeBzeroFwEightTestMOne > maeBzeroFsThirtyTwoTestMOne
+% CLAIM: maeBzeroFwEightTestMOne > maeFwEightTestMOne
+A model trained on one clip length therefore cannot simply be fed fewer frames: at 8 frames the
+retrained models were far more accurate than the released model.
+
+\begin{figure}[t]
+\centering
+\resfig{mae_vs_t}{\columnwidth}
+\caption{Test MAE (M1, seed 0) against frames per clip for both regimes, with 95\% bootstrap
+CIs. Filled markers: trained models; hollow: the released EchoNet model without retraining
+(Tier 0). FS-32 belongs to both regimes.}
+\label{fig:mae}
+\end{figure}
+
 \subsection{Trained frame sweep}
-% Fig. 2: \includegraphics[width=\columnwidth]{mae_vs_t.pdf}
+Among the trained models, the lowest M1 test MAE was \res{bestMaeTestMOne}
+(\res{bestConfigTestMOne}) and the highest \res{worstMaeTestMOne} (\res{worstConfigTestMOne});
+averaged over the two seeds the best configuration was \res{bestMeanConfigTestMOne}
+(\res{bestMeanMaeTestMOne}), and the SD of the MAE over seeds was at most
+\res{maxSeedSdTestMOne} for any configuration. Table~\ref{tab:wilcoxon} gives the nine
+pre-specified paired comparisons, of which \res{wilSigCountTest} are significant after Holm
+correction.
+
+\emph{Coverage versus density.} With 8 frames, spreading them over 1.28\,s (FW-8) instead of
+0.32\,s (FS-8) changed the per-video absolute error by a median of
+\res{wilMedFsEightFwEightTest} points (FS-8 minus FW-8; 95\% CI \res{wilLoFsEightFwEightTest} to
+\res{wilHiFsEightFwEightTest}; Holm $p$ \res{wilPFsEightFwEightTest}); with 16 frames the
+difference was \res{wilMedFsSixteenFwSixteenTest} (\res{wilSigFsSixteenFwSixteenTest}). Within
+the fixed window, going from 8 to 16 frames changed the error by \res{wilMedFwEightFwSixteenTest}
+(\res{wilSigFwEightFwSixteenTest}) and from 16 to 32 frames by
+\res{wilMedFwSixteenFsThirtyTwoTest} (\res{wilSigFwSixteenFsThirtyTwoTest}).
+% CLAIM: wilSigFsEightFwEightTest = "significant"
+% CLAIM: wilDirFsEightFwEightTest = "larger"
+% CLAIM: wilSigFsSixteenFwSixteenTest = "significant"
+% CLAIM: wilDirFsSixteenFwSixteenTest = "larger"
+% CLAIM: wilMedFsEightFwEightTest > wilMedFwEightFwSixteenTest
+Most of the error of short fixed-stride clips therefore comes from the part of the beat they do
+not see, not from the small number of frames: 8 frames spread over a beat do better than 8 or 16
+consecutive ones.
+
+\emph{Beyond one beat.} FS-64 spans 2.56\,s, about two beats; against FS-32 its error changed by
+\res{wilMedFsThirtyTwoFsSixtyFourTest} (FS-32 minus FS-64, \res{wilSigFsThirtyTwoFsSixtyFourTest}).
+FW-64 samples the same 64 frames as FS-32 at every frame instead of every second one; the
+difference was \res{wilMedFsThirtyTwoFwSixtyFourTest} (\res{wilSigFsThirtyTwoFwSixtyFourTest}).
+% CLAIM: wilSigFsThirtyTwoFsSixtyFourTest = "not significant"
+% CLAIM: wilSigFsThirtyTwoFwSixtyFourTest = "not significant"
+Once a clip covers a whole beat, neither a longer window nor denser sampling brought a
+significant gain.
+
+\emph{Error by EF and agreement.} Errors were largest at reduced EF: for FS-32, the M1 MAE was
+\res{maeleFourZeroFsThirtyTwoTestMOne} for EF $\le 40$\%, \res{maeFourOneFourNineFsThirtyTwoTestMOne}
+for 41--49\% and \res{maegeFiveZeroFsThirtyTwoTestMOne} for EF $\ge 50$\%, with a calibration
+slope of \res{calibslopeFsThirtyTwoTestMOne} and limits of agreement of
+\res{loaloFsThirtyTwoTestMOne} to \res{loahiFsThirtyTwoTestMOne} points (Fig.~\ref{fig:ba}).
+% CLAIM: maeleFourZeroFsThirtyTwoTestMOne > maegeFiveZeroFsThirtyTwoTestMOne
+% CLAIM: calibslopeFsThirtyTwoTestMOne > 1
+A slope above 1 means predictions are pulled toward the mean EF, which shrinks errors near the
+mean and enlarges them at low EF, where they matter most. Excluding the
+\res{unpadNFsSixtyFourTestMOne} test videos whose FS-64 clip was padded changed its MAE from
+\res{unpadMaeAllFsSixtyFourTestMOne} to \res{unpadMaeFsSixtyFourTestMOne}, so zero-padding short
+videos does not drive the long-window result.
+
+\begin{table}[t]
+\centering
+\caption{The nine pre-specified paired comparisons on the test set (M1): median per-video
+difference in absolute error, A minus B, averaged over seeds (EF points), with 95\% bootstrap CI
+and Holm-adjusted Wilcoxon $p$.}
+\label{tab:wilcoxon}
+\footnotesize
+\begin{adjustbox}{max width=\columnwidth}
+\inputtable{table_wilcoxon}
+\end{adjustbox}
+\end{table}
+
 \subsection{Cost and Pareto frontier}
-% Fig. 3: pareto.pdf; Table II: \inputtable{table_main}
+Table~\ref{tab:cost} lists the cost of every configuration on the RTX 4060. Each model has
+\res{paramsMillions} million parameters; compute per clip grows linearly with $T$, from
+\res{gflopsclipFsEight} GFLOPs at $T = 8$ to \res{gflopsclipFsSixtyFour} at $T = 64$. Training
+at $T = 64$ needed \res{peakvrammbtrainFsSixtyFour}\,MB of GPU memory with activation
+checkpointing, against \res{peakvrammbtrainFsEight}\,MB at $T = 8$. Per video in M2, cost also
+depends on how many clips fit: FS-8 averages \res{meanclipsmTwoFsEight} clips of its 16-frame
+window and so costs \res{gflopsvideomTwoFsEight} GFLOPs per video, against
+% CLAIM: gflopsvideomTwoFsEight > gflopsvideomTwoFwEight
+\res{gflopsvideomTwoFwEight} for FW-8, which needs fewer, longer windows. The Pareto front of
+accuracy against compute (Fig.~\ref{fig:pareto}) consists, in order of cost, of
+\res{paretoFrontTest}.
+
+\begin{table}[t]
+\centering
+\caption{Cost on the RTX 4060 Laptop GPU: GFLOPs per clip, mean clips and GFLOPs per test video
+in M2, latency per video (batch of one video, bf16, median of 50 runs), peak training memory
+(micro-batch 8) and minutes per training epoch.}
+\label{tab:cost}
+\footnotesize
+\begin{adjustbox}{max width=\columnwidth}
+\inputtable{table_cost}
+\end{adjustbox}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\resfig{pareto}{\columnwidth}
+\caption{Test MAE (seed 0) against compute: GFLOPs per clip in M1 and per video in M2. The line
+joins the Pareto-optimal points, numbered in order of cost: \res{paretoFrontTest}.}
+\label{fig:pareto}
+\end{figure}
+
 \subsection{Multi-clip inference}
+Averaging clips over the whole video (M2) lowered the test MAE of \res{mTwoBetterCountTest} of
+the \res{trainedCountTest} trained configurations, by up to \res{mTwoGainMaxTest} points
+(\res{mTwoGainMaxConfigTest}) and by \res{mTwoGainMinTest} for \res{mTwoGainMinConfigTest}. In M2
+the best configuration was \res{bestConfigTestMTwo} (\res{bestMaeTestMTwo}), against
+\res{bestConfigTestMOne} in M1. The gain is largest where one clip sees least of the beat, and it
+% CLAIM: mTwoGainMaxConfigTest = "FS-8"
+is paid for with clips: M2 multiplies the per-clip cost by the number of windows that fit.
+
 \subsection{Explainability}
-% Table III: \inputtable{table_xai}; Fig. 4 (echo frames) added by hand.
+Table~\ref{tab:xai} scores the explanations of the four priority configurations on the test
+videos whose ED and ES frames fit in one clip: \res{xaiNFsThirtyTwoOcclusion} of 100 for FS-32,
+but only \res{xaiNFsEightOcclusion} for FS-8, whose 16-frame window is shorter than systole in
+most videos. The two frames that occlusion ranked highest lay within one sampled frame of ED or
+ES in \res{xaiHitFsThirtyTwoOcclusion}\% of FS-32 clips, against \res{xaiChanceFsThirtyTwoOcclusion}\%
+expected by chance (permutation $p$ \res{xaiPFsThirtyTwoOcclusion}); \res{xaiHitSigCount} of the
+\res{xaiConfigCount} configurations exceeded chance at $p < 0.05$. Integrated Gradients placed more
+attribution inside the traced ventricle than a uniform map would (LV ratio above 1) for
+\res{xaiLvAboveOneCount} of \res{xaiConfigCount} configurations, and deleting frames in occlusion
+order moved the prediction more than random orders (AOPC ratio above 1) for
+\res{xaiAopcAboveOneCount}. In the randomisation check on \res{sanityN} \res{sanityConfig} clips,
+the rank correlation between the trained model's maps and those after re-initialising every layer
+fell to \res{sanityIgStem} for Integrated Gradients, \res{sanityOcclusionStem} for occlusion and
+\res{sanityGradcamStem} for Grad-CAM (Fig.~\ref{fig:xai}), so the maps depend on the learned
+% CLAIM: |sanityIgStem| < 0.5
+% CLAIM: |sanityOcclusionStem| < 0.5
+weights rather than on the input alone. Fig.~\ref{fig:xaiexamples} shows examples.
+
+\begin{table}[t]
+\centering
+\caption{Explanation scores on the test sample (seed 0): videos scored $n$; share of the two
+most important occlusion frames near ED or ES (chance level in brackets); Integrated Gradients
+attribution inside the LV relative to a uniform map; deletion AOPC relative to random orders.}
+\label{tab:xai}
+\footnotesize
+\begin{adjustbox}{max width=\columnwidth}
+\inputtable{table_xai}
+\end{adjustbox}
+\end{table}
+
+\begin{figure}[t]
+\centering
+\resfig{xai_summary}{\columnwidth}
+\caption{Explanation tests against frames per clip for both regimes, and the randomisation
+check: rank correlation with the trained model's maps as layers are re-initialised from the
+output back to the input.}
+\label{fig:xai}
+\end{figure}
+
+\begin{figure*}[t]
+\centering
+\IfFileExists{\resultsdir/xai/fs32/examples.pdf}{\includegraphics[width=\textwidth]{\resultsdir/xai/fs32/examples.pdf}}{\fbox{\parbox{0.9\textwidth}{\centering\small XAI example panel (echo frames): results/xai/fs32/examples.pdf, added by hand}}}
+\caption{FS-32 explanations for one test video per EF band and the largest error: ED and ES
+frames with the Integrated Gradients magnitude in orange, and the occlusion curve with ED and ES
+marked. Attributions show what moves the model's output, not what causes the heart's function.}
+\label{fig:xaiexamples}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\resfig{bland_altman}{\columnwidth}
+\caption{Bland--Altman plot of FS-32 (EchoNet's setting) on the test set, M1, seed 0:
+prediction minus reference against their mean, with the bias and 95\% limits of agreement.}
+\label{fig:ba}
+\end{figure}
 
 \section{Discussion and Limitations}
-% Density vs coverage; clinical scale of the gaps (inter-observer variation 7.6--13.9% in
-% [ouyang2020nature]); single centre; 10 epochs and two seeds; frames, not seconds; influence,
-% not mechanism; the seed band captures model variance only.
+\emph{Coverage, not frame count.} The fixed-window regime separates the two things a shorter
+clip loses. At 8 and 16 frames, covering 1.28\,s instead of 0.32 or 0.64\,s lowered the error
+% CLAIM: wilSigFsEightFwEightTest = "significant"
+% CLAIM: wilSigFsSixteenFwSixteenTest = "significant"
+% CLAIM: wilMedFsEightFwEightTest > wilMedFwEightFwSixteenTest
+significantly, while within the 1.28\,s window more frames changed it far less. EchoNet's
+validation sweep settled on the same 64-frame window~\cite{ouyang2020nature}; our test-set,
+two-seed version agrees and adds its price. Because R(2+1)D-18's cost grows linearly with $T$,
+a sparsely sampled beat is the efficient way to cut compute: FW-8 costs a quarter of FS-32 per
+clip and sees the same window.
+
+% CLAIM: mTwoGainMaxConfigTest = "FS-8"
+% CLAIM: gflopsvideomTwoFsEight > gflopsvideomTwoFsThirtyTwo
+\emph{Deployment.} Multi-clip averaging recovers part of what short windows lose, but it does so
+by running many clips per video, so a short fixed-stride model is not cheap per video. A model
+should be trained at the clip length it will be used with: the released model degraded sharply
+% CLAIM: maeBzeroFsEightTestMOne > maeFsEightTestMOne
+% CLAIM: maeBzeroFwEightTestMOne > maeFwEightTestMOne
+when fed fewer frames (Tier 0), whereas models trained on 8 frames lost much less.
+
+\emph{Clinical scale.} Among configurations that cover a beat, the paired differences were a
+% CLAIM: |wilMedFwSixteenFsThirtyTwoTest| < 1
+% CLAIM: |wilMedFsThirtyTwoFsSixtyFourTest| < 1
+% CLAIM: |wilMedFsThirtyTwoFwSixtyFourTest| < 1
+fraction of an EF point, small against the 7.6--13.9\% inter-observer variation of human
+readers~\cite{ouyang2020nature}; a statistically significant gap of that size is clinically
+negligible. Errors were largest at reduced EF, the range that matters most, because predictions
+% CLAIM: maeleFourZeroFsThirtyTwoTestMOne > maegeFiveZeroFsThirtyTwoTestMOne
+% CLAIM: calibslopeFsThirtyTwoTestMOne > 1
+are pulled toward the mean.
+
+\emph{Explanations.} Occlusion and Integrated Gradients answer which inputs move the output;
+the numeric tests check whether that coincides with the cardiac phases and the ventricle that a
+cardiologist would use, and the randomisation check shows that the maps depend on the trained
+weights. High attribution shows influence, not mechanism. Grad-CAM, with only $T/8$ time steps
+at the last stage, cannot rank frames and was used for spatial maps only.
+
+\emph{Limitations.} All videos come from one hospital, and EchoNet's own error rose from 4.1 to
+6.0 EF points on another hospital's data~\cite{ouyang2020nature}; our results are single-centre
+and apical four-chamber only. Reference EF comes from human tracings, whose own variation exceeds
+most of the gaps we test. Every configuration was trained for 10 epochs with one untuned learning
+rate and two seeds, so absolute errors are conservative and a better-tuned recipe could favour
+some clip lengths; Kinetics weights were trained on 16-frame clips. Windows are set in frames,
+and frame rates vary around 50 per second, so a window is not exactly the stated number of
+seconds. Two GPUs trained the models, which the hardware control places within seed noise. The
+seed range in the prototype reflects model variance only and understates the true uncertainty.
+
+\emph{Prototype.} A local Gradio app takes an echo video, checks its format (warning when it is
+not a 112$\times$112 grey clip), and returns EF with the seed range, the EF band of the 2021
+universal definition~\cite{bozkurt2021universal} (labelled as a band, not a diagnosis), a
+frame-importance chart and, on request, an Integrated Gradients animation of the clip. It uses
+\res{demoConfig}, the configuration with the lowest validation MAE in M2 among the Pareto-optimal
+ones, with all \res{demoSeeds} seeds; it never runs as a public link.
+
+\section{Ethics and Data Use}
+EchoNet-Dynamic is used under its research use agreement~\cite{echonet_site}: individual
+registration, non-commercial research only, no redistribution and no clinical use. Videos, frame
+caches, per-video predictions and trained weights stay on the authors' machines and are not part
+of the code repository; the repository holds code, configuration and aggregated results only. The
+prototype runs locally, shows that it is not clinically validated and not for diagnosis, and
+deletes uploaded videos when it stops. No attempt was made to re-identify anyone.
 
 \section{Conclusion}
+We measured how many frames an R(2+1)D-18 EF regressor needs on EchoNet-Dynamic, on the test set,
+% CLAIM: wilSigFsEightFwEightTest = "significant"
+% CLAIM: wilSigFsThirtyTwoFsSixtyFourTest = "not significant"
+with two seeds and with its cost on a consumer GPU. Clips that cover about one heartbeat reach
+the best accuracy; more frames or a longer window then add cost without a significant gain,
+while short fixed-stride clips lose accuracy because they miss part of the beat. A trained model
+should not be fed a clip length it was not trained on. Occlusion ranked frames near end-diastole
+or end-systole above chance for \res{xaiHitSigCount} of \res{xaiConfigCount} configurations, and
+numeric tests of this kind make such statements checkable rather than visual impressions.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}
