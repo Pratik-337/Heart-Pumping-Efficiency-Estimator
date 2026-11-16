@@ -282,7 +282,7 @@ A local Gradio app takes an AVI or MP4 echo video and returns predicted EF with 
 5. **Reference check:** if the file name matches an EchoNet test video, show the reference EF and the absolute error. Otherwise show "No reference EF available, so no error score", as the proposal specifies.
 6. **Banner:** "Research prototype. Not clinically validated. Not for diagnosis."
 
-**Rules:** `launch(share=False)`; no dataset videos stored in the repo or the app folder; demo examples are loaded from your local data folder at run time. *Reason:* the Research Use Agreement forbids redistribution ([EchoNet site](https://echonet.github.io/dynamic/)).
+**Rules:** `launch(share=False)`; no dataset videos stored in the repo or the app folder; demo examples are loaded from your local data folder at run time. Gradio telemetry is off, and Gradio's upload cache (copies of uploaded videos) and the saliency animations live in one temporary folder deleted when the app stops. The default model is the D-13 choice written by `aggregate_results.py` to `results/tables/demo_choice.csv`. *Reason:* the Research Use Agreement forbids redistribution ([EchoNet site](https://echonet.github.io/dynamic/)).
 
 **Done when:** 5 test videos and 1 synthetic non-echo video each return a result or a clear warning in under 3 s for the prediction path on the RTX 4060.
 

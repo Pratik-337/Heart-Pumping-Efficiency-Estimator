@@ -34,7 +34,10 @@ uv run python scripts/make_tables.py
 step "Gate D: the demo app (D-13 config, every seed) answers 6 inputs, each under 3 s"
 uv run python app/gate_d.py
 
-step "report check: every number macro used in docs/report/main.tex is defined"
-uv run python scripts/check_report.py
+step "report zip for Overleaf (no echo frames; add them with --with-xai-examples)"
+uv run python scripts/bundle_report.py
+
+step "report check: every number, table and figure exists and every CLAIM holds"
+uv run python scripts/check_report.py || echo "REPORT CHECK FAILED: rewrite the sentences listed above (outputs are complete)"
 
 step "final run finished"
