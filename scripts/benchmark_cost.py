@@ -6,7 +6,9 @@
 Weights do not change speed or memory, so random weights are used; the model setting
 (checkpointing for training at T = 64) comes from each config. Mean M2 clips are over the used
 TEST videos' lengths (frame counts only; no labels or predictions are read). Epoch time comes
-from the seed-0 run's metrics.json. Writes cost_meta.json with nvidia-smi before and after.
+from the first finished run of the config that trained on this GPU, else from this GPU's A4
+probe estimate for the same T (D-23/D-31: cost numbers from one GPU only); cost_meta.json
+records the source per config, with nvidia-smi before and after.
 """
 
 import argparse
@@ -19,11 +21,11 @@ import pandas as pd
 import torch
 
 from echoef.config import load_config, load_paths
-from echoef.contracts import CONFIGS, COST_COLUMNS, run_dir
+from echoef.contracts import CONFIGS, COST_COLUMNS
 from echoef.data.dataset import load_videos
 from echoef.eval.cost import (
+    config_epoch_time,
     count_params,
-    epoch_time_s,
     gflops_per_clip,
     latency_ms,
     mean_m2_clips,
@@ -45,6 +47,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--runs", type=int, default=50, help="timed runs (spec: 50)")
     parser.add_argument("--warmup", type=int, default=10, help="warm-up runs (spec: 10)")
+    parser.add_argument("--probe", type=Path, default=None,
+                        help="A4 probe CSV of this GPU (default: probe/probe_memory_rtx4060.csv "
+                        "under results_root), for configs not trained on this GPU")  # fmt: skip
     parser.add_argument("--paths", type=Path, default=None, help="default: configs/paths.yaml")
     args = parser.parse_args(argv)
     configs = list(CONFIGS) if args.all else (args.configs or parser.error("--configs or --all"))
@@ -66,7 +71,9 @@ def main(argv: list[str] | None = None) -> None:
         "warmup": args.warmup,
     }
 
-    rows = []
+    probe_csv = args.probe or roots["results_root"] / "probe" / "probe_memory_rtx4060.csv"
+    this_gpu = gpu_name(device) if device.type == "cuda" else "cpu"
+    rows, epoch_sources = [], {}
     for config_id in configs:
         cfg = load_config(config_id)
         configure_backends(cfg)
@@ -75,6 +82,9 @@ def main(argv: list[str] | None = None) -> None:
         model = build_model(pretrained=False, head_bias=55.0)
         clips = mean_m2_clips(n_frames, t, period)
         gflops = gflops_per_clip(model, t)
+        epoch_s, epoch_sources[config_id] = config_epoch_time(
+            roots["runs_root"], config_id, t, this_gpu, probe_csv
+        )
         row = {
             "config_id": config_id, "T": t, "period": period, "params": count_params(model),
             "gflops_clip": gflops, "mean_clips_m2": clips, "gflops_video_m2": gflops * clips,
@@ -83,8 +93,8 @@ def main(argv: list[str] | None = None) -> None:
                                         args.warmup, args.runs),
             "peak_vram_mb_infer": peak_infer_mb(model, t, device, precision),
             "micro_batch": mb,
-            "epoch_time_s": epoch_time_s(run_dir(roots["runs_root"], config_id, 0)),
-            "gpu_name": gpu_name(device) if device.type == "cuda" else "cpu",
+            "epoch_time_s": epoch_s,
+            "gpu_name": this_gpu,
         }  # fmt: skip
         if device.type == "cuda":
             ckpt = bool(cfg.model.activation_checkpointing)
@@ -104,7 +114,8 @@ def main(argv: list[str] | None = None) -> None:
     out = roots["results_root"]
     out.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows)[COST_COLUMNS].to_csv(out / "cost.csv", index=False)
-    meta |= {"smi_end": nvidia_smi(), "finished": datetime.now(UTC).isoformat(timespec="seconds")}
+    meta |= {"epoch_time_source": epoch_sources, "smi_end": nvidia_smi(),
+             "finished": datetime.now(UTC).isoformat(timespec="seconds")}  # fmt: skip
     (out / "cost_meta.json").write_text(json.dumps(meta, indent=2) + "\n")
     log.info("wrote %s", out / "cost.csv")
 

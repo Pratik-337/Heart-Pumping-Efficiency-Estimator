@@ -10,7 +10,9 @@ Spec, "Cost metrics (fixed protocol)":
   ``torch.cuda.synchronize()``. M1 = one clip; M2 = a video with the mean number of M2 clips,
   its clips run in chunks of ``train.micro_batch`` as ``predict.predict_video`` does;
 - peak VRAM: ``torch.cuda.max_memory_allocated`` for M1 inference and for one training step;
-- epoch time: mean epoch wall-clock of the config's seed-0 run on this GPU (``metrics.json``).
+- epoch time: mean epoch wall-clock (``metrics.json``) of the config's first finished run that
+  trained on this GPU; configs trained only on another laptop (D-31) take this GPU's A4 timing
+  probe estimate for the same T (``config_epoch_time``).
 """
 
 import json
@@ -19,6 +21,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 from torch.utils.flop_counter import FlopCounterMode
@@ -107,3 +110,34 @@ def epoch_time_s(run: Path) -> float | None:
         return float(json.loads((Path(run) / "metrics.json").read_text())["epoch_seconds_mean"])
     except (FileNotFoundError, KeyError, json.JSONDecodeError):
         return None
+
+
+def _run_gpu(run: Path) -> str | None:
+    try:
+        return json.loads((Path(run) / "meta.json").read_text()).get("gpu_name")
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def config_epoch_time(
+    runs_root: Path, config_id: str, T: int, gpu: str, probe_csv: Path | None = None
+) -> tuple[float | None, str]:
+    """Mean epoch seconds of ``config_id`` on the GPU named ``gpu``, and where it came from.
+
+    Cost numbers come from one GPU only (D-23, D-31), but some configs trained on another
+    laptop. Order: the first finished run of the config (seed 0, 1, ...) whose ``meta.json``
+    names ``gpu``; else the A4 timing probe's estimate for the same T on that GPU
+    (``probe_csv``, column ``epoch_s_est``; the compute of a config depends on T only); else
+    None.
+    """
+    for run in sorted((Path(runs_root) / config_id).glob("seed*")):
+        if (run / "DONE").exists() and _run_gpu(run) == gpu:
+            seconds = epoch_time_s(run)
+            if seconds is not None:
+                return seconds, f"log {config_id}/{run.name}"
+    if probe_csv is not None and Path(probe_csv).exists():
+        probe = pd.read_csv(probe_csv)
+        hit = probe[(probe["gpu_name"] == gpu) & (probe["T"] == T)]["epoch_s_est"].dropna()
+        if len(hit):
+            return float(hit.iloc[0]), f"probe T={T} ({Path(probe_csv).name})"
+    return None, "none"

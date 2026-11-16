@@ -42,3 +42,32 @@ def test_epoch_time_from_metrics(tmp_path):
     assert cost.epoch_time_s(tmp_path) is None
     (tmp_path / "metrics.json").write_text(json.dumps({"epoch_seconds_mean": 97.5}))
     assert cost.epoch_time_s(tmp_path) == 97.5
+
+
+def test_epoch_time_only_from_this_gpu(tmp_path):
+    """D-23/D-31: a run trained on another GPU never sets the epoch time; the probe does."""
+    gpu, other = "NVIDIA GeForce RTX 4060 Laptop GPU", "NVIDIA GeForce RTX 4050 Laptop GPU"
+
+    def run(config_id, seed, gpu_name, seconds, done=True):
+        path = tmp_path / "runs" / config_id / f"seed{seed}"
+        path.mkdir(parents=True)
+        (path / "meta.json").write_text(json.dumps({"gpu_name": gpu_name}))
+        (path / "metrics.json").write_text(json.dumps({"epoch_seconds_mean": seconds}))
+        if done:
+            (path / "DONE").write_text("")
+
+    run("fs8", 0, other, 120.0)
+    run("fs8", 1, gpu, 97.0)  # seed 1 trained here: used although seed 0 exists
+    run("fs16", 0, other, 250.0)
+    run("fs32", 0, gpu, 380.0, done=False)  # unfinished: ignored
+    probe = tmp_path / "probe.csv"
+    probe.write_text(
+        "gpu_name,config_id,T,epoch_s_est\n"
+        f"{gpu},fs16,16,196.0\n{other},fs32,32,500.0\n{gpu},fs32,32,386.0\n"
+    )
+    runs = tmp_path / "runs"
+    assert cost.config_epoch_time(runs, "fs8", 8, gpu, probe) == (97.0, "log fs8/seed1")
+    seconds, source = cost.config_epoch_time(runs, "fs16", 16, gpu, probe)
+    assert seconds == 196.0 and source.startswith("probe T=16")
+    assert cost.config_epoch_time(runs, "fs32", 32, gpu, probe)[0] == 386.0
+    assert cost.config_epoch_time(runs, "fw16", 16, gpu, None) == (None, "none")

@@ -177,7 +177,9 @@ effect size is the median paired difference with its bootstrap interval.
 \emph{Cost.} FLOPs per clip are counted with PyTorch's FLOP counter (one multiply-add = two
 FLOPs) and multiplied by the M2 clip count for the cost per video. Latency is the median of 50
 timed runs after 10 warm-up runs, for one video at a time in bf16, timed with CUDA events. Peak
-memory is measured for inference and for one training step; training time comes from the logs.
+memory is measured for inference and for one training step. Training time per epoch comes
+from the RTX 4060 training logs; for the three configurations trained on the RTX 4050 it is the
+RTX 4060's measured step time scaled to one epoch, so every cost figure refers to one GPU.
 
 \section{Results}
 \subsection{Tier 0}

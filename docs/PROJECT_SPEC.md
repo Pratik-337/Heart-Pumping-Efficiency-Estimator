@@ -227,7 +227,7 @@ Every model is scored on the same accuracy, agreement and cost metrics by one sc
 | Latency per video | Batch 1, bf16, after 10 warm-up runs, median of 50 runs, timed with CUDA events after `torch.cuda.synchronize()` |
 | Throughput | Clips per second at the largest batch that fits |
 | Peak VRAM | `torch.cuda.max_memory_allocated()` for inference and for one training step |
-| Training time | Wall-clock per epoch and per run, from logs |
+| Training time | Wall-clock per epoch and per run, from the logs of runs trained on the RTX 4060; FW-8, FS-16 and FW-16 trained only on the RTX 4050 (D-31), so theirs is the RTX 4060 probe estimate for the same T (Step 4b). `cost_meta.json` records the source per config |
 | GPU state | `nvidia-smi` clocks, temperature and power logged during benchmarks |
 
 **How to read the numbers**
