@@ -11,14 +11,22 @@ how a model is trained must be unchanged since that tag (``FROZEN_PATHS``). The 
 change; each run's ``meta.json`` records the exact commit.
 """
 
+import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
 
+import pandas as pd
+
 from echoef.config import REPO_ROOT
-from echoef.contracts import run_dir
+from echoef.contracts import MODES, predictions_path, run_dir
 from echoef.train.trainer import DONE_FILE
-from echoef.utils.meta import git_changed_since, git_dirty, git_ref_commit
+from echoef.utils.meta import (
+    git_changed_between,
+    git_changed_since,
+    git_dirty,
+    git_ref_commit,
+)
 
 log = logging.getLogger(__name__)
 
@@ -100,3 +108,64 @@ def run_queue(
             log.error("%s seed %d FAILED; moving on (see %s/train.log)", config_id, seed, run)
     log.info("queue finished: %s", {k: len(v) for k, v in summary.items()})
     return summary
+
+
+HWCONTROL_GLOB = "_hwcontrol_*"  # runs/_hwcontrol_<machine>/<config>/seed<k>/ (D-31)
+
+
+def run_status(run: Path, epochs: int, repo: Path = REPO_ROOT) -> dict:
+    """What Gate C needs to know about one run folder; ``problems`` is "ok" when nothing is
+    missing: DONE, every epoch logged, ``best.pt``, validation predictions in M1 and M2, and a
+    training recipe (``FROZEN_PATHS`` at the commit in ``meta.json``) equal to ``config-frozen``.
+    """
+    run = Path(run)
+    try:
+        meta = json.loads((run / "meta.json").read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        meta = {}
+    try:
+        logged = len(pd.read_csv(run / "log.csv"))
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        logged = 0
+    problems = []
+    if not (run / DONE_FILE).exists():
+        problems.append("not DONE")
+    if logged < epochs:
+        problems.append(f"{logged} of {epochs} epochs logged")
+    if not (run / "best.pt").exists():
+        problems.append("no best.pt")
+    problems += [f"no VAL {m} predictions" for m in MODES
+                 if not predictions_path(run, "VAL", m).exists()]  # fmt: skip
+    commit = str(meta.get("git_commit", ""))
+    changed = git_changed_between(CONFIG_FROZEN_TAG, commit, FROZEN_PATHS, repo) if commit else None
+    if changed is None:
+        problems.append(f"commit {commit[:7] or '?'} unknown here")
+    elif changed:
+        problems.append(f"recipe differs from {CONFIG_FROZEN_TAG}: {changed}")
+    return {"epochs": logged, "gpu_name": meta.get("gpu_name", ""), "commit": commit[:7],
+            "problems": "; ".join(problems) or "ok"}  # fmt: skip
+
+
+def check_runs(
+    runs_root: Path,
+    assignment: dict[str, list[tuple[str, int]]],
+    epochs: int,
+    repo: Path = REPO_ROOT,
+) -> pd.DataFrame:
+    """Gate C: the status of every run in ``assignment.yaml`` and every hardware-control run.
+
+    Returns:
+        One row per run: machine, config_id, seed, epochs, gpu_name, commit, problems.
+    """
+    rows = []
+    for machine, queue in assignment.items():
+        for config_id, seed in queue:
+            status = run_status(run_dir(runs_root, config_id, seed), epochs, repo)
+            rows.append({"machine": machine, "config_id": config_id, "seed": seed} | status)
+    for run in sorted(Path(runs_root).glob(f"{HWCONTROL_GLOB}/*/seed*")):
+        machine = run.parents[1].name.removeprefix("_hwcontrol_") + " (control)"
+        status = run_status(run, epochs, repo)
+        rows.append({"machine": machine, "config_id": run.parent.name,
+                     "seed": int(run.name.removeprefix("seed"))} | status)  # fmt: skip
+    return pd.DataFrame(rows, columns=["machine", "config_id", "seed", "epochs", "gpu_name",
+                                       "commit", "problems"])  # fmt: skip

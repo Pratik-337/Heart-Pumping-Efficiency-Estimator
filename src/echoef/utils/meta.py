@@ -92,3 +92,13 @@ def git_changed_since(ref: str, paths: tuple[str, ...], repo: Path = REPO_ROOT) 
     """Files under ``paths`` whose committed content differs between ``ref`` and HEAD."""
     out = _git(["diff", "--name-only", ref, "HEAD", "--", *paths], repo)
     return [line for line in (out or "").splitlines() if line]
+
+
+def git_changed_between(
+    ref_a: str, ref_b: str, paths: tuple[str, ...], repo: Path = REPO_ROOT
+) -> list[str] | None:
+    """Files under ``paths`` that differ between two commits; None if either is unknown here."""
+    if git_ref_commit(ref_a, repo) is None or git_ref_commit(ref_b, repo) is None:
+        return None
+    out = _git(["diff", "--name-only", ref_a, ref_b, "--", *paths], repo)
+    return [line for line in (out or "").splitlines() if line]

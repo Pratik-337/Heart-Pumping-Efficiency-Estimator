@@ -8,8 +8,9 @@ cd "$(dirname "$0")/.."
 
 step() { echo; echo "=== $(date '+%a %H:%M:%S')  $*"; }
 
-step "checks: Gate C tag, no training queue, tests"
+step "checks: Gate C tag, every planned run finished with the frozen recipe, tests"
 git rev-parse -q --verify refs/tags/models-frozen >/dev/null || { echo "tag models-frozen missing (Gate C)"; exit 1; }
+uv run python scripts/check_runs.py
 uv run pytest -q
 
 step "Tier 0 on validation again (predictions with the FP32 regression head)"

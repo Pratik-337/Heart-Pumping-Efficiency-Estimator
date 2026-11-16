@@ -88,3 +88,45 @@ def test_gpu_lock_blocks_a_second_job_and_ignores_stale_locks(tmp_path):
     dead.wait()
     (tmp_path / gpu.QUEUE_LOCK).write_text(json.dumps({"pid": dead.pid, "started": "x"}))
     gpu.require_gpu_free(tmp_path)  # stale lock: its process is gone
+
+
+def test_check_runs_for_gate_c(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "a.py").write_text("1")
+    _git(repo, "init", "-q")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-q", "-m", "one")
+    _git(repo, "tag", "config-frozen")
+    frozen = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
+                            text=True, check=True).stdout.strip()  # fmt: skip
+    (repo / "src" / "a.py").write_text("2")
+    _git(repo, "commit", "-q", "-am", "change the recipe")
+    changed = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True,
+                             text=True, check=True).stdout.strip()  # fmt: skip
+    runs = tmp_path / "runs"
+
+    def make(path, commit, epochs=3, done=True, preds=("M1", "M2")):
+        path.mkdir(parents=True)
+        (path / "meta.json").write_text(json.dumps({"git_commit": commit, "gpu_name": "G"}))
+        (path / "log.csv").write_text("epoch\n" + "".join(f"{e}\n" for e in range(epochs)))
+        (path / "best.pt").touch()
+        for mode in preds:
+            (path / f"predictions_val_{mode}.csv").touch()
+        if done:
+            (path / "DONE").touch()
+
+    make(runs / "fs8" / "seed0", frozen)
+    make(runs / "fs8" / "seed1", frozen, epochs=2, done=False)  # still training
+    make(runs / "fs16" / "seed0", changed)  # trained with another recipe
+    make(runs / "fw8" / "seed0", frozen, preds=("M1",))
+    make(runs / "_hwcontrol_rtx4050" / "fs8" / "seed0", frozen)
+    assignment = {"a": [("fs8", 0), ("fs8", 1)], "b": [("fs16", 0), ("fw8", 0), ("fs64", 0)]}
+    table = sweep.check_runs(runs, assignment, 3, repo).set_index(["config_id", "seed"])
+    problems = table["problems"]
+    assert problems[("fs8", 0)].tolist() == ["ok", "ok"]  # the queued run and the control
+    assert "not DONE" in problems[("fs8", 1)] and "2 of 3 epochs" in problems[("fs8", 1)]
+    assert "recipe differs" in problems[("fs16", 0)] and "src/a.py" in problems[("fs16", 0)]
+    assert problems[("fw8", 0)] == "no VAL M2 predictions"
+    assert "not DONE" in problems[("fs64", 0)] and "no best.pt" in problems[("fs64", 0)]
+    assert sorted(table["machine"].unique()) == ["a", "b", "rtx4050 (control)"]
