@@ -85,6 +85,9 @@ def test_summary_sanity_and_figures(processed, model):
     clip = torch.randn(3, 8, 112, 112)
     sanity = pl.sanity_rows(model, {"a": clip}, "fs8", "fp32", ("occlusion", "gradcam"))
     assert len(sanity) == 6 * 2 and sanity["spearman"].between(-1, 1).all()
+    table = pl.sanity_summary(sanity)
+    assert len(table) == 2 * 6 and (table["n"] == 1).all()  # 2 methods x 6 stages, 1 video
+    assert table["stage"].tolist()[:6] == ["fc", "layer4", "layer3", "layer2", "layer1", "stem"]
     fig = summary_chart(summary.reset_index().assign(config_id="fs8"), sanity)
     assert len(fig.axes) >= 4
     ex = {"clip": clip, "ig": np.random.rand(8, 112, 112), "occlusion": np.random.rand(8),

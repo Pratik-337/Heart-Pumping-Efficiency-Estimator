@@ -8,7 +8,8 @@ Writes, under results_root:
 - ``xai_sample.csv`` (``xai_sample_val.csv`` for --split val): the fixed-seed video sample;
 - ``xai/<config_id>/xai_metrics.csv`` and ``examples.pdf`` (echo frames: git-ignored folder);
 - ``xai/<sanity config>/sanity.csv``: randomisation check on --sanity-videos videos;
-- ``tables/xai_summary.csv`` and ``figures/xai_summary.pdf``: numbers only, committable.
+- ``tables/xai_summary.csv``, ``tables/xai_sanity.csv`` and ``figures/xai_summary.pdf``: numbers
+  only, committable.
 """
 
 import argparse
@@ -34,6 +35,7 @@ from echoef.xai.pipeline import (
     explain_video,
     metrics_frame,
     sanity_rows,
+    sanity_summary,
     summarise,
 )
 from echoef.xai.render import example_panel, summary_chart
@@ -173,6 +175,8 @@ def main(argv: list[str] | None = None) -> None:
     (results / "figures").mkdir(parents=True, exist_ok=True)
     suffix = "" if split == "TEST" else f"_{args.split}"
     summary.to_csv(results / "tables" / f"xai_summary{suffix}.csv", index=False)
+    if sanity is not None and len(sanity):
+        sanity_summary(sanity).to_csv(results / "tables" / f"xai_sanity{suffix}.csv", index=False)
     summary_chart(summary, sanity).savefig(results / "figures" / f"xai_summary{suffix}.pdf")
     log.info("wrote %s", results / "tables" / f"xai_summary{suffix}.csv")
 

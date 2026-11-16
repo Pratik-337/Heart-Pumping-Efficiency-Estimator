@@ -226,3 +226,14 @@ def sanity_rows(
                 )
         del random_model
     return pd.DataFrame(rows, columns=SANITY_COLUMNS)
+
+
+def sanity_summary(sanity: pd.DataFrame) -> pd.DataFrame:
+    """Mean and SD of the Spearman correlation per config, method and randomisation stage (stages
+    in cascade order, ``fc`` first), with the number of videos. Numbers only: committable."""
+    grouped = sanity.groupby(["config_id", "method", "stage"], sort=False)["spearman"]
+    out = grouped.agg(n="count", spearman_mean="mean", spearman_sd="std").reset_index()
+    methods = {m: i for i, m in enumerate(dict.fromkeys(sanity["method"]))}
+    stages = {s: i for i, s in enumerate(RANDOMISATION_STAGES)}
+    order = out["method"].map(methods) * len(stages) + out["stage"].map(stages)
+    return out.assign(_o=order).sort_values(["config_id", "_o"]).drop(columns="_o")
