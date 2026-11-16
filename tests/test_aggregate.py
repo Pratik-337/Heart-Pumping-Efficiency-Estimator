@@ -85,3 +85,15 @@ def test_cost_columns_are_joined_on_config(runs, tmp_path):
 def test_no_predictions_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         ag.aggregate(tmp_path / "empty", tmp_path / "results")
+
+
+def test_hardware_control_table(runs, tmp_path):
+    _write_run(runs / "_hwcontrol_rtx4050", "fs8", 0, 6.5, gpu="RTX 4050")
+    table = ag.aggregate(runs, tmp_path / "results")
+    hw = pd.read_csv(tmp_path / "results" / "tables" / "hardware_control.csv")
+    assert len(hw) == 2 and (hw["machine"] == "rtx4050").all()
+    assert (hw["gpu_name"] == "RTX 4050").all() and (hw["main_gpu_name"] == "GPU-X").all()
+    assert hw["seed_gap"].notna().all()  # fs8 has a second seed on the main GPU
+    assert (
+        len(table[(table["config_id"] == "fs8") & (table["seed"] == 0)]) == 2
+    )  # not counted twice

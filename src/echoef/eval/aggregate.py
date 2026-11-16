@@ -8,7 +8,8 @@ Sources under ``runs_root``: trained runs ``<config_id>/seed<k>/`` with ``DONE``
   the cost columns of ``cost.csv`` are joined on ``config_id`` when that file exists;
 - ``tables/wilcoxon_holm.csv``: the 9 pre-specified paired comparisons;
 - ``tables/seed_summary.csv``: mean and SD of MAE across seeds;
-- ``tables/unpadded.csv``: MAE on the videos whose clips are not zero-padded (D-09, D-28).
+- ``tables/unpadded.csv``: MAE on the videos whose clips are not zero-padded (D-09, D-28);
+- ``tables/hardware_control.csv``: hardware-control runs against the main GPU (D-31).
 """
 
 import json
@@ -186,6 +187,59 @@ def unpadded_table(preds: dict[tuple, pd.DataFrame]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+HWCONTROL_GLOB = "_hwcontrol_*"  # runs/_hwcontrol_<machine>/<config>/seed<k>/ (D-31)
+
+
+def _val_mae(path: Path) -> float:
+    df = pd.read_csv(path)
+    return float((df["ef_pred"] - df["ef_true"]).abs().mean())
+
+
+def hardware_control_table(runs_root: Path, split: str = "VAL") -> pd.DataFrame:
+    """Each hardware-control run's MAE next to the same config and seed on the main GPU, and the
+    config's seed-to-seed gap on the main GPU (spec: compare the hardware gap with the seed
+    spread). Empty when there is no finished control run."""
+    rows = []
+    for control in sorted(Path(runs_root).glob(f"{HWCONTROL_GLOB}/*/seed*")):
+        if not (control / DONE_FILE).exists():
+            continue
+        config_id, seed = control.parent.name, int(control.name.removeprefix("seed"))
+        main_run = Path(runs_root) / config_id / f"seed{seed}"
+        for mode in MODES:
+            path, main = (
+                predictions_path(control, split, mode),
+                predictions_path(main_run, split, mode),
+            )
+            if not (path.exists() and main.exists()):
+                continue
+            other = [
+                o
+                for o in sorted((Path(runs_root) / config_id).glob("seed*"))
+                if o != main_run
+                and (o / DONE_FILE).exists()
+                and predictions_path(o, split, mode).exists()
+            ]
+            mae_main = _val_mae(main)
+            rows.append(
+                {
+                    "config_id": config_id,
+                    "seed": seed,
+                    "split": split,
+                    "mode": mode,
+                    "machine": control.parents[1].name.removeprefix("_hwcontrol_"),
+                    "gpu_name": _gpu_name(control),
+                    "mae_control": _val_mae(path),
+                    "main_gpu_name": _gpu_name(main_run),
+                    "mae_main": mae_main,
+                    "hardware_gap": _val_mae(path) - mae_main,
+                    "seed_gap": (_val_mae(predictions_path(other[0], split, mode)) - mae_main)
+                    if other
+                    else np.nan,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def aggregate(
     runs_root: Path, results_root: Path, test_split: str = "TEST", mode: str = "M1"
 ) -> pd.DataFrame:
@@ -205,6 +259,9 @@ def aggregate(
     table.to_csv(results_root / "all_runs.csv", index=False)
     seed_summary(table).to_csv(tables / "seed_summary.csv", index=False)
     unpadded_table(preds).to_csv(tables / "unpadded.csv", index=False)
+    control = hardware_control_table(runs_root)
+    if len(control):
+        control.to_csv(tables / "hardware_control.csv", index=False)
     split = test_split if any(k[2] == test_split for k in preds) else "VAL"
     trained = {k: v for k, v in preds.items() if not k[0].startswith(TIER0_PREFIX)}
     pairs = comparison_pairs(trained, split, mode)
