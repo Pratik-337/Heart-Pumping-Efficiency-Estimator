@@ -51,9 +51,11 @@ def test_dataset_macros_from_eda(tmp_path):
         "n_ef_41_49",
         "n_ef_ge50",
         "edes_gap_median",
+        "fps_median",
     ]
     pd.DataFrame(
-        [["ALL", 10030, 9931, 171.0, 28, 1002, 55.75, 12.37, 1264, 982, 7784, 16.0]], columns=cols
+        [["ALL", 10030, 9931, 171.0, 28, 1002, 55.75, 12.37, 1264, 982, 7784, 16.0, 50.0]],
+        columns=cols,
     ).to_csv(eda / "split_summary.csv", index=False)
     for name, col in (("padding_share.csv", "share_padded"), ("edes_fit.csv", "share_skip")):
         pd.DataFrame({"config_id": ["fs64"], "split": ["ALL"], col: [0.131]}).to_csv(
@@ -63,3 +65,4 @@ def test_dataset_macros_from_eda(tmp_path):
     assert "\\newcommand{\\edaNAll}{10,030}" in tex
     assert "\\newcommand{\\edaEfmeanAll}{55.8}" in tex
     assert "\\newcommand{\\edaSharepaddedFsSixtyFour}{13.1}" in tex
+    assert "\\newcommand{\\edaFpsmedianAll}{50}" in tex
