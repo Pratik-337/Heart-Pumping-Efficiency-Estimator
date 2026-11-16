@@ -22,7 +22,8 @@ step "cost benchmark on this GPU"
 uv run python scripts/benchmark_cost.py --all
 
 step "explainability on the 4 priority configs"
-uv run python scripts/run_xai.py --configs fs8 fw8 fs32 fs64 --n-videos 100 --device cuda
+uv run python scripts/run_xai.py --configs fs8 fw8 fs32 fs64 --n-videos 100 --device cuda \
+    --split test --confirm-test
 
 step "aggregation and figures"
 uv run python scripts/aggregate_results.py
