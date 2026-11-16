@@ -1,27 +1,30 @@
 # Which laptop trains which [config_id, seed] runs, in queue order (spec, "Interface contracts",
-# "Additions for three laptops"). `scripts/run_sweep.py --machine <name>` runs that list and
-# skips runs whose folder already holds DONE. Runs not finished at the `models-frozen` tag are
-# not used.
+# "Additions for three laptops"). `scripts/run_sweep.py --machine <name>` runs that list (read
+# again before every run) and skips runs whose folder already holds DONE. Runs not finished at
+# the `models-frozen` tag are not used.
 #
-# D-29 (16 Nov): only the RTX 4060 is available, so every run is queued here. Run times measured
-# in A4 are in docs/PROJECT_SPEC.md, "Compute budget", Step 4b.
+# D-29 (16 Nov): only the RTX 4060 was available; run times measured in A4 are in
+# docs/PROJECT_SPEC.md, "Compute budget", Step 4b.
+# D-31 (16 Nov): the RTX 4050 joined. It trains both seeds of the configs with T <= 16 not yet
+# started (FW-8, FS-16, FW-16), so each config's seeds stay on one GPU and the 4050 never needs
+# T = 64 memory. It also trains an FS-8 seed-0 hardware control outside this queue:
+#   scripts/train.py --config fs8 --seed 0 --machine rtx4050 --out runs/_hwcontrol_rtx4050/fs8/seed0
 rtx4060:
-  # 1. seed 0 of all 7 configs, cheapest useful first; Gate B checks fs32 seed 0 (2nd run)
+  # seed 0 (fs8 and fs32 finished before D-31; Gate B checks fs32)
   - [fs8, 0]
   - [fs32, 0]
-  - [fs16, 0]
-  - [fw8, 0]
-  - [fw16, 0]
   - [fs64, 0]
   - [fw64, 0]
-  # 2. seed 1 of the 5 configs with T <= 32
+  # seed 1, cheapest first
   - [fs8, 1]
   - [fs32, 1]
-  - [fs16, 1]
-  - [fw8, 1]
-  - [fw16, 1]
-  # 3. seed 1 of the 64-frame configs
   - [fs64, 1]
   - [fw64, 1]
-rtx4050: []  # not available (D-29)
+rtx4050:
+  - [fw8, 0]
+  - [fs16, 0]
+  - [fw16, 0]
+  - [fw8, 1]
+  - [fs16, 1]
+  - [fw16, 1]
 rtx3050: []  # not available (D-29)
