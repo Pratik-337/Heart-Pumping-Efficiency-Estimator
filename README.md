@@ -11,6 +11,10 @@ Predicts left-ventricular ejection fraction (EF) from EchoNet-Dynamic echocardio
 
 No result is quoted here: every number lives in `results/all_runs.csv` and the tables generated from it.
 
+## Status (16 Nov 2026)
+
+Work in progress. The code for every task is in place and tested (CPU, synthetic data), and the Tier 0 baseline is evaluated on validation. The 14 training runs (7 configurations × 2 seeds) are still training on two laptops. Test evaluation, the cost benchmark, the explainability runs, `results/all_runs.csv`, the figures and the report's Results section all come from one final run after the models are frozen (tag `models-frozen`). Until then `results/` holds only the dataset summary (`eda/`) and the memory probe (`probe/`), and the report draft in `docs/report/` covers the Introduction to the Experimental Setup.
+
 ## Setup (WSL2 Ubuntu or Linux, NVIDIA GPU for training)
 
 ```bash
