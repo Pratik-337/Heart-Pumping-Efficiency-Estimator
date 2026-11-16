@@ -1,14 +1,17 @@
 # Heart Pumping Efficiency Estimator
 
-Predicts left-ventricular ejection fraction (EF) from EchoNet-Dynamic echocardiogram videos with a fine-tuned R(2+1)D-18, and measures how many frames the model needs: test accuracy against GFLOPs, latency and VRAM for clip lengths 8–64, plus explanations scored with numbers.
+Predicts left-ventricular ejection fraction (EF) from EchoNet-Dynamic echocardiogram videos with a fine-tuned R(2+1)D-18, and measures how many frames the model needs: test accuracy against GFLOPs, latency and VRAM for clip lengths 8–64 under two sampling regimes, plus explanations scored with numbers.
 
 **Research prototype. Not clinically validated. Not for diagnosis.**
 
 - Plan, interface contracts and task list: [docs/PROJECT_SPEC.md](docs/PROJECT_SPEC.md) (the source of truth)
 - Decision log: [docs/decisions.md](docs/decisions.md)
+- Report source (IEEEtran): [docs/report/](docs/report/)
 - Rules for Claude Code: [CLAUDE.md](CLAUDE.md)
 
-## Setup (WSL2 Ubuntu, Linux or Apple-silicon macOS)
+No result is quoted here: every number lives in `results/all_runs.csv` and the tables generated from it.
+
+## Setup (WSL2 Ubuntu or Linux, NVIDIA GPU for training)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh        # once per machine
@@ -17,14 +20,42 @@ cd Heart-Pumping-Efficiency-Estimator
 uv sync                                                 # Python 3.12 + the locked environment
 cp configs/paths.example.yaml configs/paths.yaml        # then edit the roots for this machine
 uv run pre-commit install                               # ruff + data-file guard on every commit
-uv run pytest -q
+uv run pytest -q                                        # CPU only, synthetic data
 ```
 
-`configs/paths.yaml` is git-ignored and holds the five roots every script reads (`raw_root`, `processed_root`, `runs_root`, `results_root`, `weights_root`). On a machine without the dataset, point them at the synthetic data folder (see the comments in `paths.example.yaml`).
+`configs/paths.yaml` is git-ignored and holds the five roots every script reads: `raw_root`, `processed_root`, `runs_root`, `results_root`, `weights_root`. The locked PyTorch wheel has CUDA on Linux only; on native Windows it installs a CPU build, so use WSL2.
 
 ## Data
 
-EchoNet-Dynamic is licensed for individual, non-commercial research and may not be redistributed. Videos, frame caches, per-video predictions, checkpoints and figures that show echo frames are never committed; `.gitignore` and a pre-commit hook block them. Anyone who needs the real data registers on the Stanford AIMI portal personally. Development without the data uses synthetic videos (`scripts/make_synthetic_data.py`, task B1).
+EchoNet-Dynamic is licensed for individual, non-commercial research and may not be redistributed. Register on the Stanford AIMI portal, download the dataset and unpack it so that `raw_root` holds `FileList.csv`, `VolumeTracings.csv` and `Videos/`. For the baseline B0, put EchoNet's released `r2plus1d_18_32_2_pretrained.pt` (echonet/dynamic, release v1.0.0) in `weights_root`.
+
+Videos, frame caches, per-video predictions, checkpoints and figures that show echo frames are never committed; `.gitignore` and a pre-commit hook block them.
+
+## Reproducing the study
+
+Each step is one script; all read `configs/paths.yaml` and log to their output folder.
+
+| Step | Command | Writes |
+| --- | --- | --- |
+| A2 Verify and cache the data | `uv run python scripts/verify_dataset.py`<br>`uv run python scripts/preprocess.py`<br>`uv run python scripts/eda.py` | `processed_root/` (frame cache, index, tracings, train-only stats, QC report); `results/eda/*.csv` |
+| A3 Look at batches | `uv run python scripts/batch_grids.py` | `processed_root/inspect/batch_grids/` (echo frames: local only) |
+| A4 Memory and speed per T | `uv run python scripts/probe_memory.py --machine rtx4060` | `results/probe/` |
+| A5 Gate A and Tier 0 | `uv run python scripts/evaluate.py --split val --tier0` | `runs/b0-<config>/seed0/predictions_val_*.csv` |
+| A6 Train | `git switch queue-d31` (or the tag `config-frozen`), then `tmux new -s sweep 'uv run python scripts/run_sweep.py --machine rtx4060'` | `runs/<config>/seed<k>/` |
+| Freeze models (Gate C) | `git tag models-frozen` once every run is DONE and copied to one machine | — |
+| A7–A10 Final run | `bash scripts/final_run.sh` | test predictions, `results/cost.csv`, `results/xai/`, `results/all_runs.csv`, tables, figures |
+| A11 Demo | `uv run python app/app.py --runs runs/<config>/seed0 runs/<config>/seed1` | local Gradio page on `127.0.0.1` |
+
+Training follows `configs/assignment.yaml` (which laptop trains which `[config, seed]`); the sweep refuses to start unless the training recipe matches the tag `config-frozen`, and it resumes interrupted runs from their last epoch. The test split can only be evaluated with `--confirm-test` after the tag `models-frozen` exists.
+
+### Tables and figures from saved predictions (no GPU)
+
+```bash
+uv run python scripts/aggregate_results.py   # results/all_runs.csv, results/tables/*.csv
+uv run python scripts/make_figures.py        # results/figures/*.pdf (3.5 in, IEEE column)
+uv run python scripts/make_tables.py         # results/numbers.tex, dataset.tex, tables/*.tex for the report
+uv run python scripts/check_report.py        # every number macro used in docs/report/main.tex exists
+```
 
 ## Checks before every push
 
@@ -36,11 +67,15 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest -q
 
 | Path | What lives there |
 | --- | --- |
-| `src/echoef/` | Library code: data pipeline, model, training, evaluation, explainability |
+| `src/echoef/data/` | Preprocessing, tracings and LV masks, clip sampling, dataset, transforms |
+| `src/echoef/models/` | R(2+1)D-18 EF regressor, B0 loader, checkpoints |
+| `src/echoef/train/` | Training step and run, memory probe, resumable sweep |
+| `src/echoef/eval/` | Prediction, metrics, statistics, cost, aggregation, figures, report tables |
+| `src/echoef/xai/` | Occlusion, Integrated Gradients, 3D Grad-CAM, their numeric tests, figures |
 | `scripts/` | Thin command-line wrappers around `src/echoef/` |
-| `configs/` | `base.yaml` (shared settings), `experiments/<config_id>.yaml`, `paths.example.yaml` |
+| `app/` | Local Gradio demo and the Gate D check |
+| `configs/` | `base.yaml`, `experiments/<config_id>.yaml`, `assignment.yaml`, `paths.example.yaml` |
 | `tests/` | pytest, CPU only, synthetic data |
-| `results/` | `all_runs.csv`, `cost.csv`, tables and figures (committed); `xai/` (git-ignored) |
-| `runs/` | One folder per training run (git-ignored) |
-
-The full tree and file ownership are in the spec, sections "Repository folder structure" and "Who owns what".
+| `results/` | Aggregated CSVs, tables and figures (committed); `xai/` (git-ignored) |
+| `runs/` | One folder per run (git-ignored) |
+| `docs/` | Spec, decision log, report source |
