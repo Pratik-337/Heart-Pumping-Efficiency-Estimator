@@ -1,5 +1,7 @@
 """Provenance for run folders and preprocessing outputs: git commit and library versions."""
 
+import hashlib
+import json
 import platform
 import subprocess
 from importlib import metadata
@@ -51,3 +53,42 @@ def library_versions(packages: tuple[str, ...] = PACKAGES) -> dict[str, str]:
         except metadata.PackageNotFoundError:
             versions[name] = "not installed"
     return versions
+
+
+def git_tag_exists(tag: str, repo: Path = REPO_ROOT) -> bool:
+    """True if ``tag`` names a tag in the repository (e.g. ``models-frozen``, Gate C)."""
+    return _git(["rev-parse", "-q", "--verify", f"refs/tags/{tag}"], repo) is not None
+
+
+def config_hash(config: dict) -> str:
+    """Short SHA-256 of a resolved config, independent of key order."""
+    blob = json.dumps(config, sort_keys=True, default=str).encode()
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def run_meta(
+    config: dict, seed: int, gpu: str, started: str, finished: str, **extra: object
+) -> dict:
+    """``meta.json`` of a run: git commit, config hash, library versions, GPU, seed, times."""
+    return {
+        "git_commit": git_commit(),
+        "git_dirty": git_dirty(),
+        "config_hash": config_hash(config),
+        "versions": library_versions(),
+        "gpu_name": gpu,
+        "seed": seed,
+        "started": started,
+        "finished": finished,
+        **extra,
+    }
+
+
+def git_ref_commit(ref: str, repo: Path = REPO_ROOT) -> str | None:
+    """Commit hash a ref (tag, branch, ``HEAD``) points to, or None if it does not exist."""
+    return _git(["rev-parse", "-q", "--verify", f"{ref}^{{commit}}"], repo)
+
+
+def git_changed_since(ref: str, paths: tuple[str, ...], repo: Path = REPO_ROOT) -> list[str]:
+    """Files under ``paths`` whose committed content differs between ``ref`` and HEAD."""
+    out = _git(["diff", "--name-only", ref, "HEAD", "--", *paths], repo)
+    return [line for line in (out or "").splitlines() if line]

@@ -42,7 +42,7 @@ from echoef.train.probe import (
 )
 from echoef.train.trainer import check_loss, configure_backends, make_optimizer
 from echoef.utils import git_commit, git_dirty, library_versions, seed_everything, setup_logging
-from echoef.utils.gpu import cap_to_free_vram, gpu_name, nvidia_smi
+from echoef.utils.gpu import cap_to_free_vram, gpu_name, nvidia_smi, require_gpu_free
 from echoef.utils.seeding import seed_worker
 
 log = logging.getLogger("probe_memory")
@@ -181,6 +181,7 @@ def main(argv: list[str] | None = None) -> None:
     stem = out_dir / f"probe_memory_{args.machine}{'_' + args.tag if args.tag else ''}"
     setup_logging(stem.with_suffix(".log"))
     device = torch.device("cuda")
+    require_gpu_free(roots["runs_root"])
     meta = {
         "task": "A4",
         "machine": args.machine,

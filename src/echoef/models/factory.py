@@ -93,7 +93,10 @@ class EFRegressor(VideoResNet):
         for stage in (self.layer1, self.layer2, self.layer3, self.layer4):
             x = self._stage(stage, x)
         x = self.avgpool(x).flatten(1)
-        return self.fc(x).squeeze(-1)
+        # The head runs in FP32 even under bf16 autocast: a bf16 output keeps 8 mantissa bits,
+        # which rounds EF to 0.25-point steps between 32 and 64 (seen in the A6 smoke run).
+        with torch.autocast(device_type=x.device.type, enabled=False):
+            return self.fc(x.float()).squeeze(-1)
 
 
 def kinetics_state_dict(progress: bool = False) -> dict[str, torch.Tensor]:

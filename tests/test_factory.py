@@ -92,3 +92,17 @@ def test_kinetics_weights_load_into_everything_but_the_head():
     for k, v in reference.items():
         assert torch.equal(model.state_dict()[k], v), k
     assert model.fc.bias.item() == pytest.approx(55.6)
+
+
+def test_head_output_is_not_rounded_to_bf16_under_autocast():
+    torch.manual_seed(0)
+    model = f.build_model(pretrained=False, head_bias=55.0).eval()
+    x = torch.randn(*SMALL)
+    with torch.no_grad(), torch.autocast("cpu", dtype=torch.bfloat16):
+        out = model(x)
+    assert out.dtype == torch.float32
+    with torch.no_grad():
+        model.fc.bias += 0.01  # a change far below bf16's 0.25 step at 55
+        with torch.autocast("cpu", dtype=torch.bfloat16):
+            shifted = model(x)
+    torch.testing.assert_close(shifted - out, torch.full_like(out, 0.01), atol=1e-4, rtol=0)

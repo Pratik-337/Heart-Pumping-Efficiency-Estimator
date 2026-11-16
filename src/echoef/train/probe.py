@@ -23,7 +23,7 @@ from omegaconf import DictConfig
 from torch import nn
 
 from echoef.contracts import FRAME_SIZE
-from echoef.train.trainer import make_optimizer, predict_batch, train_micro_step
+from echoef.train.steps import make_optimizer, predict_batch, train_micro_step
 
 MB = 2**20
 
