@@ -24,7 +24,13 @@ def test_tables_and_numbers(tmp_path):
             for c, (r, t, p) in CONFIGS.items() for s in (0, 1, "ens")]  # fmt: skip
     pd.DataFrame(rows).to_csv(tmp_path / "all_runs.csv", index=False)
     written = tb.write_tables(tmp_path)
-    assert {p.name for p in written} == {"table_configs.tex", "numbers.tex", "table_main.tex"}
+    assert {p.name for p in written} == {
+        "table_configs.tex",
+        "numbers.tex",
+        "table_main.tex",
+        "metrics_summary.csv",
+        "metrics_summary.md",
+    }
     numbers = (tmp_path / "numbers.tex").read_text()
     names = re.findall(r"\\newcommand\{\\(\w+)\}", numbers)
     assert "maeFsThirtyTwoTestMOne" in names and "maeFsThirtyTwoTestMOneEns" in names
@@ -33,6 +39,34 @@ def test_tables_and_numbers(tmp_path):
     main = (tmp_path / "tables" / "table_main.tex").read_text()
     assert main.count("\\\\") == 1 + len(CONFIGS)  # header + one row per config
     assert "FS-8" in (tmp_path / "tables" / "table_configs.tex").read_text()
+
+
+def test_metrics_summary_derives_mse_per_run_and_orders_rows():
+    base = {"split": "TEST", "mode": "M1", "n": 10}
+    rows = [
+        base | {"config_id": "fs8", "seed": 0, "mae": 4.0, "rmse": 5.0, "r2": 0.8},
+        base | {"config_id": "fs8", "seed": 1, "mae": 6.0, "rmse": 7.0, "r2": 0.6},
+        base | {"config_id": "fs8", "seed": "ens", "mae": 4.5, "rmse": 5.5, "r2": 0.75},
+        base | {"config_id": "b0-fs8", "seed": 0, "mae": 9.0, "rmse": 11.0, "r2": 0.2},
+        {"config_id": "fs8", "seed": 0, "split": "VAL", "mode": "M2", "n": 12, "mae": 3.0,
+         "rmse": 4.0, "r2": 0.9},
+    ]  # fmt: skip
+    summary = tb.metrics_summary(pd.DataFrame(rows))
+    assert list(zip(summary["config_id"], summary["split"], summary["mode"], strict=True)) == [
+        ("fs8", "TEST", "M1"),
+        ("b0-fs8", "TEST", "M1"),
+        ("fs8", "VAL", "M2"),
+    ]
+    fs8 = summary.iloc[0]
+    assert fs8["n_seeds"] == 2 and fs8["n_videos"] == 10 and fs8["mae_mean"] == 5.0
+    assert fs8["mse_mean"] == (5.0**2 + 7.0**2) / 2  # mean of the seeds' MSEs, not 6.0 squared
+    assert fs8["ens_mse"] == 5.5**2 and fs8["ens_mae"] == 4.5
+    b0 = summary.iloc[1]
+    assert b0["n_seeds"] == 1 and pd.isna(b0["mae_sd"]) and pd.isna(b0["ens_mae"])
+    md = tb.metrics_markdown(summary)
+    assert "## TEST split, M1 (single clip)" in md and "## VAL split, M2 (multi-clip" in md
+    assert "| FS-8 | 2 | 10 | 5.00 ± 1.41 | 6.00 ± 1.41 | 37.0 ± 17.0 |" in md
+    assert "| B0 at FS-8 | 1 | 10 | 9.00 | 11.00 | 121.0 |" in md
 
 
 def test_dataset_macros_from_eda(tmp_path):

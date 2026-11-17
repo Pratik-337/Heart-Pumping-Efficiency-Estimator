@@ -489,6 +489,105 @@ def eda_tex(eda_dir: Path) -> str:
     return "\n".join(lines) + "\n"
 
 
+SUMMARY_METRICS = (
+    "mae",
+    "rmse",
+    "mse",
+    "r2",
+    "bias",
+    "loa_lo",
+    "loa_hi",
+    "auroc_lt50",
+    "auroc_le40",
+)
+ENSEMBLE_METRICS = ("mae", "rmse", "mse", "r2")
+
+
+def metrics_summary(all_runs: pd.DataFrame) -> pd.DataFrame:
+    """Accuracy per config, split and mode: seed mean and SD of each metric in ``all_runs``, and
+    the seed ensemble's MAE, RMSE, MSE and R^2 (``ens_*``).
+
+    MSE is derived per run as RMSE^2 (EF points^2) before averaging, so ``mse_mean`` is the mean
+    of the seeds' MSEs, not ``rmse_mean`` squared. Tier 0 (one B0 model) has ``n_seeds`` 1, no
+    SD and no ensemble. Rows: TEST first, then M1 before M2, trained configs in spec order, then
+    Tier 0. Numbers only; ``write_tables`` saves it as ``tables/metrics_summary.csv``.
+    """
+    runs = all_runs.assign(mse=all_runs["rmse"] ** 2)
+    is_ens = runs["seed"].astype(str) == "ens"
+    keys = ["config_id", "split", "mode"]
+    grouped = runs[~is_ens].groupby(keys)
+    out = pd.concat({"n_seeds": grouped.size(), "n_videos": grouped["n"].max()}, axis=1)
+    for metric in (m for m in SUMMARY_METRICS if m in runs):
+        out[f"{metric}_mean"] = grouped[metric].mean()
+        out[f"{metric}_sd"] = grouped[metric].std()
+    ens = runs[is_ens].set_index(keys)[[m for m in ENSEMBLE_METRICS if m in runs]]
+    out = out.join(ens.add_prefix("ens_")).reset_index()
+    rank = {c: i for i, c in enumerate([*CONFIGS, *(TIER0_PREFIX + c for c in CONFIGS)])}
+    order = pd.DataFrame(
+        {
+            "split": out["split"].ne("TEST"),
+            "name": out["split"],
+            "mode": out["mode"].map({m: i for i, m in enumerate(MODES)}),
+            "config": out["config_id"].map(rank),
+        }
+    ).sort_values(["split", "name", "mode", "config"])
+    return out.loc[order.index].reset_index(drop=True)
+
+
+def _pm(mean, sd, digits: int) -> str:
+    """ "mean ± SD", or the mean alone when there is no SD; "–" when the value is missing."""
+    if mean is None or pd.isna(mean):
+        return "–"
+    if sd is None or pd.isna(sd):
+        return f"{mean:.{digits}f}"
+    return f"{mean:.{digits}f} ± {sd:.{digits}f}"
+
+
+def metrics_markdown(summary: pd.DataFrame) -> str:
+    """``metrics_summary`` as GitHub Markdown, one table per split and mode (TEST M1, the primary
+    endpoint, first); ``write_tables`` saves it as ``tables/metrics_summary.md``."""
+    lines = [
+        "# Accuracy of every model",
+        "",
+        "Written by `scripts/make_tables.py` from `results/all_runs.csv`; do not edit by hand. "
+        "Errors are in EF percentage points (MSE in points²). Trained configurations: mean ± SD "
+        "over seeds; *Ensemble MAE* averages the seeds' predictions first. *B0*: EchoNet's "
+        "released 32-frame weights fed each setting without training (Tier 0). M1: one clip per "
+        "video (primary endpoint); M2: average over half-overlapping clips. *95% LoA*: "
+        "Bland–Altman limits of agreement. *AUROC*: detecting EF < 50 and EF ≤ 40. All columns "
+        "per seed and the cost columns are in `results/all_runs.csv`.",
+    ]
+    head = (
+        "| Model | Seeds | Videos | MAE | RMSE | MSE | R² | Bias | 95% LoA "
+        "| AUROC EF<50 | AUROC EF≤40 | Ensemble MAE |"
+    )
+    for (split, mode), part in summary.groupby(["split", "mode"], sort=False):
+        name = "single clip" if mode == "M1" else "multi-clip average"
+        lines += ["", f"## {split} split, {mode} ({name})", "", head, "|---" * 12 + "|"]
+        for r in part.to_dict("records"):
+            c = r["config_id"]
+            label = config_label(c)
+            label = f"B0 at {label}" if c.startswith(TIER0_PREFIX) else label
+            lo, hi = r.get("loa_lo_mean"), r.get("loa_hi_mean")
+            loa = "–" if lo is None or pd.isna(lo) else f"{lo:.1f} to {hi:.1f}"
+            cells = [
+                label,
+                str(int(r["n_seeds"])),
+                str(int(r["n_videos"])),
+                _pm(r.get("mae_mean"), r.get("mae_sd"), 2),
+                _pm(r.get("rmse_mean"), r.get("rmse_sd"), 2),
+                _pm(r.get("mse_mean"), r.get("mse_sd"), 1),
+                _pm(r.get("r2_mean"), r.get("r2_sd"), 3),
+                _pm(r.get("bias_mean"), r.get("bias_sd"), 2),
+                loa,
+                _pm(r.get("auroc_lt50_mean"), r.get("auroc_lt50_sd"), 3),
+                _pm(r.get("auroc_le40_mean"), r.get("auroc_le40_sd"), 3),
+                _pm(r.get("ens_mae"), None, 2),
+            ]
+            lines.append("| " + " | ".join(cells) + " |")
+    return "\n".join(lines) + "\n"
+
+
 def write_tables(results_root: Path) -> list[Path]:
     """Write every table and the macros that its inputs allow; return the written paths."""
     results_root = Path(results_root)
@@ -511,6 +610,10 @@ def write_tables(results_root: Path) -> list[Path]:
         split = "TEST" if (all_runs["split"] == "TEST").any() else "VAL"
         (tables / "table_main.tex").write_text(table_main(all_runs, split))
         written += [results_root / "numbers.tex", tables / "table_main.tex"]
+        summary = metrics_summary(all_runs)
+        summary.to_csv(tables / "metrics_summary.csv", index=False)
+        (tables / "metrics_summary.md").write_text(metrics_markdown(summary))
+        written += [tables / "metrics_summary.csv", tables / "metrics_summary.md"]
         if cost is not None:
             (tables / "table_cost.tex").write_text(table_cost(cost))
             written.append(tables / "table_cost.tex")

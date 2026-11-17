@@ -11,9 +11,11 @@ Predicts left-ventricular ejection fraction (EF) from EchoNet-Dynamic echocardio
 
 No result is quoted here: every number lives in `results/all_runs.csv` and the tables generated from it.
 
-## Status (16 Nov 2026)
+**Results:** [results/tables/metrics_summary.md](results/tables/metrics_summary.md) gives MAE, RMSE, MSE, R², bias, limits of agreement and AUROC for every model on the test and validation splits; `results/all_runs.csv` has every metric per seed with the cost columns, `results/cost.csv` the cost benchmark and `results/figures/` the figures.
 
-Work in progress. The code for every task is in place and tested (CPU, synthetic data), and the Tier 0 baseline is evaluated on validation. 12 of the 14 training runs (7 configurations × 2 seeds) and the RTX 4050 hardware-control run are finished; the last two (FS-64 and FW-64, seed 1) are training. Test evaluation, the cost benchmark, the explainability runs, `results/all_runs.csv`, the tables, the figures and the report's numbers all come from one final run after the models are frozen (tag `models-frozen`). The report in `docs/report/` is drafted end to end; its numbers appear as `??` until that run.
+## Status (17 Nov 2026)
+
+All 14 training runs (7 configurations × 2 seeds) and the RTX 4050 hardware-control run are finished and frozen (tag `models-frozen`). The final run evaluated every model and Tier 0 on the test split once, ran the cost benchmark and the explainability tests, and generated `results/all_runs.csv`, the tables, the figures and the report's numbers; the demo passed Gate D. The report in `docs/report/` is complete in draft and compiles on Overleaf from `results/xai/report.zip`.
 
 ## Setup (WSL2 Ubuntu or Linux, NVIDIA GPU for training)
 
