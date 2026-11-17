@@ -1,0 +1,49 @@
+{
+  "git_commit": "5c60438f5cf3619c5d29433f5c09829c6e0e8446",
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.5.4",
+    "pandas": "3.1.1",
+    "pyarrow": "26.0.1",
+    "opencv-python-headless": "5.0.0.93",
+    "omegaconf": "2.4.0",
+    "torch": "2.15.0",
+    "torchvision": "0.29.2",
+    "captum": "0.9.0",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1"
+  },
+  "smi_start": {
+    "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "clocks.sm": "2250",
+    "clocks.mem": "8001",
+    "temperature.gpu": "68",
+    "power.draw": "20.59",
+    "utilization.gpu": "0",
+    "memory.used": "919",
+    "memory.total": "8188"
+  },
+  "started": "2026-11-17T06:08:46+00:00",
+  "runs": 50,
+  "warmup": 10,
+  "epoch_time_source": {
+    "fs8": "log fs8/seed0",
+    "fs16": "probe T=16 (probe_memory_rtx4060.csv)",
+    "fs32": "log fs32/seed0",
+    "fs64": "log fs64/seed0",
+    "fw8": "probe T=8 (probe_memory_rtx4060.csv)",
+    "fw16": "probe T=16 (probe_memory_rtx4060.csv)",
+    "fw64": "log fw64/seed0"
+  },
+  "smi_end": {
+    "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "clocks.sm": "2595",
+    "clocks.mem": "8001",
+    "temperature.gpu": "80",
+    "power.draw": "81.02",
+    "utilization.gpu": "39",
+    "memory.used": "840",
+    "memory.total": "8188"
+  },
+  "finished": "2026-11-17T06:10:12+00:00"
+}

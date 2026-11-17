@@ -31,3 +31,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Per-video EchoNet file names + EF labels (XAI sample; redrawn from seed 0): licence forbids redistribution
+results/xai_sample*.csv
